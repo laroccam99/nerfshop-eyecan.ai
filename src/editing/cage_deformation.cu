@@ -94,9 +94,11 @@ public:
 		return false;
 	}
 
+//Mapping tra coordinate 
 	virtual __device__ Vector3f map(Eigen::Vector3f coord, bool warp) override
 	{
 		Eigen::Vector3f unwarped_pos = coord;
+
 		if (warp)
 			unwarped_pos = unwarp_position(coord, aabb);
 
@@ -130,8 +132,7 @@ public:
 		}
 		return coord;
 	};
-};
-
+};	
 
 __global__ void interpolate_tet_pos(
 	const uint32_t n_elements,
@@ -158,6 +159,7 @@ __global__ void interpolate_tet_pos(
         Eigen::Vector3f unwarped_pos = unwarp_position(nerf_coords(i)->p, aabb);
         int level = mip_from_pos(unwarped_pos);
 
+		// Compute the cell index of the unwarped position
         uint32_t cell_idx = level * NERF_GRIDVOLUME() + cascaded_grid_idx_at(unwarped_pos, level);
         // If cell contains a triangle, get it(/them)
         for (uint32_t j = tet_lut_offsets[cell_idx]; j < tet_lut_offsets[cell_idx+1]; j++) {
@@ -166,7 +168,8 @@ __global__ void interpolate_tet_pos(
             if (point_in_tet<float, Eigen::Vector3f>(vertices[tets[4*tet_idx]], vertices[tets[4*tet_idx+1]], vertices[tets[4*tet_idx+2]], vertices[tets[4*tet_idx+3]], unwarped_pos)) {
                 // Compute barycentric coordinates
                 Eigen::Vector4f bary_coord = bary_tet(vertices[tets[4*tet_idx]], vertices[tets[4*tet_idx+1]], vertices[tets[4*tet_idx+2]], vertices[tets[4*tet_idx+3]], unwarped_pos);
-                Eigen::Vector3f canonical_pos = bary_coord.x() * original_vertices[tets[4*tet_idx]]
+                //Interpolate canonical position of the point in the tet
+				Eigen::Vector3f canonical_pos = bary_coord.x() * original_vertices[tets[4*tet_idx]]
                                             + bary_coord.y() * original_vertices[tets[4*tet_idx+1]]
                                             + bary_coord.z() * original_vertices[tets[4*tet_idx+2]]
                                             + bary_coord.w() * original_vertices[tets[4*tet_idx+3]];
@@ -236,6 +239,7 @@ __global__ void interpolate_tet(
                                             + bary_coord.y() * original_vertices[tets[4*tet_idx+1]]
                                             + bary_coord.z() * original_vertices[tets[4*tet_idx+2]]
                                             + bary_coord.w() * original_vertices[tets[4*tet_idx+3]];
+				//Warps the interpolated canonical position of the point back into the deformed space							
                 nerf_coords(i)->pos.p = warp_position(canonical_pos, aabb);
                 if (local_rotations) {
                     Eigen::Vector3f unwarped_dir = unwarp_direction(nerf_coords(i)->dir.d);
@@ -337,6 +341,8 @@ __global__ void compute_shs_kernel(
         }
     }
 }
+
+//#pragma optimize("", on)
 
 __global__ void compute_poisson_residual_density_kernel(
     const uint32_t n_elements,
@@ -544,6 +550,8 @@ __global__ void compute_residual_poisson_kernel(
 //static int collected_samples_num = 0;
 //static std::chrono::time_point<std::chrono::system_clock> last_check = std::chrono::system_clock::now();
 
+//Launched when building the proxy cage
+//Launched when editing is processing
 void CageDeformation::map_rays(cudaStream_t stream, tcnn::PitchedPtr<NerfCoordinate> nerf_coords, tcnn::GPUMatrixDynamic<bool>& empty_mask, uint32_t n_elements) const {
     
     if (!m_growing_selection.tet_interpolation_mesh || m_growing_selection.tet_interpolation_mesh->tets_gpu.size() == 0) {
@@ -591,6 +599,7 @@ void CageDeformation::map_rays(cudaStream_t stream, tcnn::PitchedPtr<NerfCoordin
 	//}
 }
 
+//Launched when Add operator "Cage" Button is clicked
 void CageDeformation::kill_empty_density(cudaStream_t stream,
 	uint32_t n_elements,
 	PitchedPtr<NerfPosition> output,
@@ -621,6 +630,10 @@ void CageDeformation::kill_empty_density(cudaStream_t stream,
 	}
 }
 
+//Funzione fondamentale!!! It starts the Backward mapping from deformed to canonical space 
+//Launched when editing is processing
+//GUI Button Launched with "Delete operator" Button
+//GUI Checkbox "Apply Membrane Correction (alpha)" 
 void CageDeformation::map_positions(cudaStream_t stream, tcnn::PitchedPtr<NerfPosition> nerf_pos, tcnn::GPUMatrixDynamic<bool>& empty_mask, uint32_t n_elements) const {
     
     if (!m_growing_selection.tet_interpolation_mesh || m_growing_selection.tet_interpolation_mesh->tets_gpu.size() == 0) {
@@ -644,6 +657,8 @@ void CageDeformation::map_positions(cudaStream_t stream, tcnn::PitchedPtr<NerfPo
     );
 }
 
+//Launched after the cage creation during the edit
+//Launched when clicking GUI Button Apply Membrane Correction
 void CageDeformation::compute_poisson_residual_density(
     cudaStream_t stream,  
     const uint32_t n_elements,
@@ -671,7 +686,7 @@ void CageDeformation::compute_poisson_residual_density(
     );
 }
 
-
+//Launched with GUI "Add operator Cage" button
 void CageDeformation::compute_poisson_full_residuals(
     cudaStream_t stream,  
     const uint32_t n_elements,
@@ -771,6 +786,7 @@ __global__ void constructDeformationDistiller(
 	distiller->original_bitfield_gpu = original_bitfield_gpu;
 }
 
+//Used during Distillation
 Distiller* CageDeformation::getDistiller()
 {
 	if (gpu_distiller == nullptr)

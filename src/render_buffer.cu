@@ -517,6 +517,7 @@ __global__ void dlss_splat_kernel(
 	surf2Dwrite(color, surface, x * sizeof(float4), y);
 }
 
+//Gestisce risoluzione all'avvio
 void CudaRenderBuffer::resize(const Vector2i& res) {
 	m_in_resolution = res;
 	m_frame_buffer.enlarge(res.x() * res.y());
@@ -659,6 +660,7 @@ void CudaRenderBuffer::enable_dlss(const Eigen::Vector2i& out_res) {
 #endif
 }
 
+//Annulla dlss all'avvio (perchè non riconosce optix)
 void CudaRenderBuffer::disable_dlss() {
 	m_dlss = nullptr;
 }

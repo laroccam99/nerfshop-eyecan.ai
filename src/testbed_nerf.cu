@@ -3511,6 +3511,7 @@ void Testbed::update_density_grid_nerf(float decay, uint32_t n_uniform_density_g
 	update_density_grid_mean_and_bitfield(stream);
 }
 
+//Aggiorna il nerf, viene avviato da vari GUI Button come Delete Operator, Apply membrane correction, ecc.
 void Testbed::update_density_grid_nerf_render(uint32_t n_iterations, bool reset_grid, cudaStream_t stream) {
 		// Update the density grid with the new transformation
 		for (int i = 0; i < n_iterations; i++) {
@@ -3530,6 +3531,7 @@ __global__ void activate_network_density(
 	network_output[i] = (network_precision_t)network_to_density(float(network_output[i]), density_activation);
 }
 
+//Called by numerous GUI Buttons like "Delete Operator", Apply Membrane Correction, ecc.
 void Testbed::update_density_grid_nerf_operator(uint32_t n_uniform_density_grid_samples, uint32_t n_nonuniform_density_grid_samples, bool reset_grid, cudaStream_t stream) {
 	float decay = m_nerf.training.density_grid_decay;
 
@@ -3915,6 +3917,7 @@ void Testbed::train_nerf(uint32_t target_batch_size, uint32_t n_training_steps, 
 	}
 }
 
+//Starts Distillation
 void Testbed::train_nerf_step_distill(uint32_t target_batch_size, uint32_t n_rays_per_batch, uint32_t* counter, uint32_t* compacted_counter, float* loss, cudaStream_t stream) {
 	int allowed_rays = n_rays_per_batch;
 	n_rays_per_batch /= 2;
@@ -4534,7 +4537,7 @@ void Testbed::compute_mesh_vertex_colors() {
 		linear_kernel(extract_srgb_with_activation, 0, m_inference_stream, n_verts * 3, 3, mlp_out.data(), (float*)m_mesh.vert_colors.data(), m_nerf.rgb_activation, m_nerf.training.linear_colors);
 	}
 }
-
+//Called by "Mesh It!" or "Save density PNG" button in Marching Cubes Mesh Output
 GPUMemory<float> Testbed::get_density_on_grid(Vector3i res3d, const BoundingBox& aabb) {
 	const uint32_t n_elements = (res3d.x()*res3d.y()*res3d.z());
 	GPUMemory<float> density(n_elements);
@@ -4584,7 +4587,7 @@ GPUMemory<float> Testbed::get_density_on_grid(Vector3i res3d, const BoundingBox&
 
 	return density;
 }
-
+//GUI Button "Save RGBA PNG sequence" in Marching Cubes Mesh Output
 GPUMemory<Eigen::Array4f> Testbed::get_rgba_on_grid(Vector3i res3d, Eigen::Vector3f ray_dir) {
 	const uint32_t n_elements = (res3d.x()*res3d.y()*res3d.z());
 	GPUMemory<Eigen::Array4f> rgba(n_elements);
@@ -4610,12 +4613,14 @@ GPUMemory<Eigen::Array4f> Testbed::get_rgba_on_grid(Vector3i res3d, Eigen::Vecto
 	}
 	return rgba;
 }
-
+//GUI Button "Mesh it!"
 int Testbed::marching_cubes(Vector3i res3d, const BoundingBox& aabb, float thresh) {
 	res3d.x() = next_multiple((unsigned int)res3d.x(), 16u);
 	res3d.y() = next_multiple((unsigned int)res3d.y(), 16u);
 	res3d.z() = next_multiple((unsigned int)res3d.z(), 16u);
 
+	std::cout << "Testbed::marching_cubes()#####################" << std::endl;
+	int a = 676767;
 	if (thresh == std::numeric_limits<float>::max()) {
 		thresh = m_mesh.thresh;
 	}

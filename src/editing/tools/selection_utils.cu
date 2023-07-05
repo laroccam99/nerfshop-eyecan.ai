@@ -5,6 +5,7 @@ using namespace Eigen;
 
 NGP_NAMESPACE_BEGIN
 
+//Launched by RegionGrowing::grow_region
 bool is_boundary(const uint32_t pos_idx) {
 	uint32_t x = tcnn::morton3D_invert(pos_idx>>0);
 	uint32_t y = tcnn::morton3D_invert(pos_idx>>1);
@@ -12,6 +13,7 @@ bool is_boundary(const uint32_t pos_idx) {
 	return x == 0 || y == 0 || z == 0 || x == NERF_GRIDSIZE()-1 || y == NERF_GRIDSIZE()-1 || z == NERF_GRIDSIZE()-1;
 }
 
+//Launched by RegionGrowing::grow_region
 void add_neighbours(std::queue<uint32_t>& growing_queue, const uint32_t x, const uint32_t y, const uint32_t z, const uint32_t level) {
 	if (x > 0) {
 		growing_queue.push(level*NERF_GRIDVOLUME() + tcnn::morton3D(x-1, y, z));
@@ -33,6 +35,7 @@ void add_neighbours(std::queue<uint32_t>& growing_queue, const uint32_t x, const
 	}
 }
 
+//Launched by GrowingSelection::project_selection_pixels()
 uint32_t get_upper_cell_idx(const uint32_t cell_idx, const uint32_t target_level) {
 	const uint32_t init_level = cell_idx / NERF_GRIDVOLUME();
 	const uint32_t init_pos_idx = cell_idx % NERF_GRIDVOLUME();
@@ -62,11 +65,17 @@ void add_upper_levels(std::queue<uint32_t>& growing_queue, const uint32_t x, con
 
 
 // TODO: handle MIP
+
+//Launched by GrowingSelection::reset_growing()
+//In summary, the function calculates the position of a cell in a growing selection 
+//based on its level and coordinates by centering, normalizing, scaling, and shifting the coordinates of the cell.
 Eigen::Vector3f get_cell_pos(const uint32_t x, const uint32_t y, const uint32_t z, const uint32_t level) {
 	Eigen::Vector3f pos = ((Eigen::Vector3f{(float)x+0.5f, (float)y+0.5f, (float)z+0.5f}) / NERF_GRIDSIZE() - Eigen::Vector3f::Constant(0.5f)) * scalbnf(1.0f, level) + Eigen::Vector3f::Constant(0.5f);
 	return pos;
 }
 
+//Launched by TetMesh<float_t, point_t>::build_original_tet_grid()
+//Calculates the indices of a cell in a 3D grid given the position of the cell
 Eigen::Vector3i get_cell_at_pos(Eigen::Vector3f pos, const uint32_t level) {
 	float mip_scale = scalbnf(1.0f, -level);
 	pos -= Vector3f::Constant(0.5f);

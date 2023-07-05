@@ -10,11 +10,12 @@
 NGP_NAMESPACE_BEGIN
 
 using namespace Eigen;
-
+//Launched by test_compactness() inprogressive_hulls.cu
 inline double area(const Eigen::Vector3d& v0, const Eigen::Vector3d& v1, const Eigen::Vector3d& v2) {
     return (v1-v0).cross(v2-v0).norm()/2.;
 }
 
+//Launched by test_compactness() inprogressive_hulls.cu
 inline double perimeter(const Eigen::Vector3d& v0, const Eigen::Vector3d& v1, const Eigen::Vector3d& v2) {
     return (v1 - v0).norm() + (v2 - v1).norm() + (v0 - v2).norm();
 }
@@ -23,6 +24,7 @@ bool test_valence (const std::vector<int>& N_origin, const int max_valence) {
     return N_origin.size() - 2 <= max_valence;
 }
 
+//Launched by progressive_hulls_quadratic_cost_and_placement()
 bool test_compactness (
     const Eigen::MatrixXd & V,
     const Eigen::MatrixXi & F,
@@ -121,6 +123,7 @@ void progressive_hulls_linear_cost_and_placement(
     }
 }
 
+//Launched by progressive_hulls_quadratic()
 void progressive_hulls_quadratic_cost_and_placement(
   const int e,
   const Eigen::MatrixXd & V,
@@ -244,7 +247,7 @@ bool progressive_hulls_linear(
         I);
 }
 
-
+//Launched by GrowingSelection::compute_proxy_mesh()
 bool progressive_hulls_quadratic(
     const Eigen::MatrixXd & V,
     const Eigen::MatrixXi & F,

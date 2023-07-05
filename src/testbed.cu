@@ -255,6 +255,7 @@ void Testbed::set_visualized_dim(int dim) {
 	reset_accumulation();
 }
 
+//comando camera rotella cliccata
 void Testbed::translate_camera(const Vector3f& rel) {
 	m_camera.col(3) += m_camera.block<3,3>(0,0) * rel * m_bounding_radius;
 	if (!m_dlss) {
@@ -273,7 +274,7 @@ Vector3f Testbed::look_at() const {
 void Testbed::set_look_at(const Vector3f& pos) {
 	m_camera.col(3) += pos - look_at();
 }
-
+//comando camera zoom con rotella
 void Testbed::set_scale(float scale) {
 	auto prev_look_at = look_at();
 	m_camera.col(3) = (view_pos() - prev_look_at) * (scale / m_scale) + prev_look_at;
@@ -287,7 +288,7 @@ void Testbed::set_view_dir(const Vector3f& dir) {
 	m_camera.col(2) = dir.normalized();
 	set_look_at(old_look_at);
 }
-
+//GUI Button Slider "Training view" per vedere i frame iniziali
 void Testbed::set_camera_to_training_view(int trainview) {
 	auto old_look_at = look_at();
 	m_camera = m_smoothed_camera = m_nerf.training.dataset.xforms[trainview].start;
@@ -298,6 +299,7 @@ void Testbed::set_camera_to_training_view(int trainview) {
 	m_screen_center = Vector2f::Constant(1.0f) - m_nerf.training.dataset.metadata[0].principal_point;
 }
 
+//Si attiva all'avvio
 void Testbed::reset_camera() {
 	m_fov_axis = 1;
 	set_fov(50.625f);
@@ -314,7 +316,7 @@ void Testbed::reset_camera() {
 	m_sun_dir = Vector3f::Ones().normalized();
 	reset_accumulation();
 }
-
+//GUI Button verde start training
 void Testbed::set_train(bool mtrain) {
 	if (m_train && !mtrain && m_max_level_rand_training) {
 		set_max_level(1.f);
@@ -341,7 +343,7 @@ void Testbed::compute_and_save_marching_cubes_mesh(const char* filename, Vector3
 	marching_cubes(res3d, aabb, thresh);
 	save_mesh(m_mesh.verts, m_mesh.vert_normals, m_mesh.vert_colors, m_mesh.indices, filename, unwrap_it, m_nerf.training.dataset.scale, m_nerf.training.dataset.offset);
 }
-
+//GUI Button "Save density PNG" in Marching Cubes Mesh Output 
 Eigen::Vector3i Testbed::compute_and_save_png_slices(const char* filename, int res, BoundingBox aabb, float thresh, float density_range, bool flip_y_and_z_axes) {
 	if (aabb.is_empty()) {
 		aabb = m_testbed_mode == ETestbedMode::Nerf ? m_render_aabb : m_aabb;
@@ -2142,6 +2144,7 @@ size_t Testbed::n_encoding_params() {
 	return m_network->n_params() - first_encoder_param();
 }
 
+//Called by "Gather histograms" Checkbox in Histograms of trainable parameters 
 size_t Testbed::first_encoder_param() {
 	auto layer_sizes = m_network->layer_sizes();
 	size_t first_encoder = 0;
@@ -2442,6 +2445,7 @@ void Testbed::reset_network() {
 	}
 }
 
+//Prima funzione che si attiva dal main
 Testbed::Testbed(ETestbedMode mode)
 : m_testbed_mode(mode)
 {
@@ -2629,6 +2633,7 @@ __global__ void dlss_prep_kernel(
 	}
 }
 
+//Avvia gui
 void Testbed::render_frame(const Matrix<float, 3, 4>& camera_matrix0, const Matrix<float, 3, 4>& camera_matrix1, const Vector4f& nerf_rolling_shutter, CudaRenderBuffer& render_buffer, bool to_srgb) {
 	Vector2i max_res = m_window_res.cwiseMax(render_buffer.in_resolution());
 
@@ -2862,7 +2867,7 @@ void Testbed::determine_autofocus_target_from_pixel(const Vector2i& focus_pixel)
 	m_autofocus_target = ray.o + ray.d * depth;
 	m_autofocus = true; // If someone shift-clicked, that means they want the AUTOFOCUS
 }
-
+//GUI Button Checkbox "Autofocus" in Camera
 void Testbed::autofocus() {
 	float new_slice_plane_z = std::max(view_dir().dot(m_autofocus_target - view_pos()), 0.1f) - m_scale;
 	if (new_slice_plane_z != m_slice_plane_z) {
@@ -2872,7 +2877,7 @@ void Testbed::autofocus() {
 		}
 	}
 }
-
+//Called by "Gather histograms" Checkbox in Histograms of trainable parameters
 Testbed::LevelStats compute_level_stats(const float* params, size_t n_params) {
 	Testbed::LevelStats s = {};
 	for (size_t i = 0; i < n_params; ++i) {
@@ -2891,7 +2896,7 @@ Testbed::LevelStats compute_level_stats(const float* params, size_t n_params) {
 	}
 	return s;
 }
-
+//GUI Checkbox "Gather histograms" in Histograms of trainable parameters
 void Testbed::gather_histograms() {
 	int n_params = (int)m_network->n_params();
 	int first_encoder = first_encoder_param();
@@ -3051,11 +3056,12 @@ void Testbed::gather_histograms() {
 //	//}
 //}
 
+//GUI Button Load(Legacy) (snapshot)
 void Testbed::load_snapshot(const std::string& filepath_string) {
 	auto config = load_network_config(filepath_string);
 	if (!config.contains("snapshot")) {
 		throw std::runtime_error{ std::string{"File '"} + filepath_string + "' does not contain a snapshot." };
-	}
+	} 
 
 	m_network_config_path = filepath_string;
 	m_network_config = config;
@@ -3064,8 +3070,7 @@ void Testbed::load_snapshot(const std::string& filepath_string) {
 		m_nerf.training.counters_rgb.rays_per_batch = m_network_config["snapshot"]["nerf"]["rgb"]["rays_per_batch"];
 		m_nerf.training.counters_rgb.measured_batch_size = m_network_config["snapshot"]["nerf"]["rgb"]["measured_batch_size"];
 		m_nerf.training.counters_rgb.measured_batch_size_before_compaction = m_network_config["snapshot"]["nerf"]["rgb"]["measured_batch_size_before_compaction"];
-		// If we haven't got a nerf dataset loaded, load dataset metadata from the snapshot
-		// and render using just that.
+		// If we haven't got a nerf dataset loaded, load dataset metadata from the snapshot and render using just that.
 		if (m_data_path.empty() && m_network_config["snapshot"]["nerf"].contains("dataset")) {
 			m_nerf.training.dataset = m_network_config["snapshot"]["nerf"]["dataset"];
 			load_nerf();
@@ -3088,6 +3093,7 @@ void Testbed::load_snapshot(const std::string& filepath_string) {
 
 }
 
+// GUI Button Save(Legacy) (snapshot)
 void Testbed::save_snapshot(const std::string& filepath_string, bool include_optimizer_state) {
 	fs::path filepath = filepath_string;
 	m_network_config["snapshot"] = m_trainer->serialize(include_optimizer_state);
@@ -3115,6 +3121,7 @@ void Testbed::save_snapshot(const std::string& filepath_string, bool include_opt
 // Increment this number when making a change to the snapshot format
 static const size_t SNAPSHOT_FORMAT_VERSION = 1;
 
+//GUI Button Save (dello snapshot)
 void Testbed::export_snapshot(const std::string& filepath_string, bool include_optimizer_state, bool compress) {
 	m_network_config["snapshot"] = m_trainer->serialize(include_optimizer_state);
 
