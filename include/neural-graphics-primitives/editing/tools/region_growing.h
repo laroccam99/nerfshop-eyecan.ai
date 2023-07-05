@@ -53,6 +53,10 @@ public:
 
     void grow_region(float density_threshold, ERegionGrowingMode region_growing_mode, int growing_level, int growing_steps);
 
+    void equidistant_points(int min_ud_points_threshold);
+    
+    void equidistant_points(int min_ud_points_threshold, int interval);
+
     nlohmann::json to_json();
 
     void load_json(nlohmann::json& j);
@@ -61,6 +65,8 @@ private:
     // Max cascade as specified with the dataset
     const uint32_t m_max_cascade;
     uint32_t m_growing_level;
+    bool equidistant_points_flag = true;
+    const int min_ud_points_threshold = 100;                   //soglia minima di punti equidistanti da ottenere
 
     // Const data from the NeRF model
     const tcnn::GPUMemory<float>& m_density_grid; // NERF_GRIDSIZE()^3 grid of EMA smoothed densities from the network
