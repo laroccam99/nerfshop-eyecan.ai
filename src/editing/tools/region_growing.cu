@@ -171,7 +171,7 @@ void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode regi
 
 //Codice aggiunto per selezionare in modo uniforme solo alcuni punti superficiali distanti; si ferma al raggiungimento della soglia minima
 void RegionGrowing::equidistant_points(int min_ud_points_threshold) {
-    std::cout << " PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
+    std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
     //Vettori temporanei 
     std::vector<Eigen::Vector3f> m_temp_points;
     std::vector<uint32_t> m_temp_idx;
@@ -180,7 +180,7 @@ void RegionGrowing::equidistant_points(int min_ud_points_threshold) {
     int interval = static_cast<int>(std::round(static_cast<double>(m_selection_points.size()) /  min_ud_points_threshold));
     int count = 0;                                                                                  //counter per scorrere l'array
     if (interval == 0){
-         std::cout << "Not enough points selected."<< std::endl;
+         std::cout << "RegionGrowing::equidistant_points() failed: Not enough superficial points selected. Try with a higher growing level."<< std::endl;
         return;
     }
 
@@ -188,7 +188,7 @@ void RegionGrowing::equidistant_points(int min_ud_points_threshold) {
         if (count % interval == 0) {
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
-            std::cout << "Growing point added A: "<< i << std::endl;
+            //std::cout << "Growing point added A: "<< i << std::endl;
         }
         count++;
     }
@@ -196,22 +196,22 @@ void RegionGrowing::equidistant_points(int min_ud_points_threshold) {
     // Sostituisci i vecchi vettori con quelli aggiornati
     m_selection_points = m_temp_points;
     m_selection_cell_idx = m_temp_idx;
-    std::cout << " POST m_selection_points size: "<< m_selection_points.size() << std::endl;
+    std::cout << "POST m_selection_points size: "<< m_selection_points.size() << std::endl;
 }  
 
 //Seleziona in modo uniforme solo alcuni punti superficiali distanti; intervallo scelto dall'utente; continua finchè non supera la soglia minima
 void RegionGrowing::equidistant_points(int min_ud_points_threshold, int interval) {
-    std::cout << " PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
+    std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
     //Vettori temporanei 
     std::vector<Eigen::Vector3f> m_temp_points;
     std::vector<uint32_t> m_temp_idx;
-int count = 0;                                                                              //counter per scorrere l'array
+    int count = 0;                                                                              //counter per scorrere l'array
 
     for (int i = 0; i < m_selection_points.size(); i++) {
         if (count % interval == 0) {
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
-            std::cout << "Growing point added A: "<< i << std::endl;
+            //std::cout << "Growing point added A: "<< i << std::endl;
         }
         count++;
     }
@@ -220,25 +220,29 @@ int count = 0;                                                                  
     int remaining_ud_points = min_ud_points_threshold - m_temp_points.size();
     if ( remaining_ud_points > 0) {
         interval2 = static_cast<int>(m_selection_points.size() / remaining_ud_points);
-    }
-    if (interval == 0){
-        std::cout << "Not enough points selected."<< std::endl;
-    return;
-    }
-
-    for (int i = 0; i < m_selection_points.size() && remaining_ud_points > 0; i++) {
-        if (count % interval2 == 0) {
-            m_temp_points.push_back(m_selection_points[i]);
-            m_temp_idx.push_back(m_selection_cell_idx[i]);
-            remaining_ud_points--;
-            std::cout << "Growing point added B: "<< i << std::endl;
+        if (interval == 0){
+            std::cout << "RegionGrowing::equidistant_points() failed: Not enough superficial points selected. Try with a higher growing level."<< std::endl;
+            return;
         }
-        count++;
+        for (int i = 0; i < m_selection_points.size() && remaining_ud_points > 0; i++) {
+            if (count % interval2 == 0) {
+                auto it = std::find(m_temp_points.begin(), m_temp_points.end(), m_selection_points[i]); //restituisce puntatore a ultimo elemento, se non trova l'oggetto
+                if (it == m_temp_points.end()) {                            //se l'oggetto non è presente, viene aggiunto 
+                    m_temp_points.push_back(m_selection_points[i]);
+                    m_temp_idx.push_back(m_selection_cell_idx[i]);
+                    remaining_ud_points--;
+                    //std::cout << "Growing point added B: "<< i << std::endl;
+                }
+                
+            }
+            count++;
+        }
     }
+    
     // Sostituisci i vecchi vettori con quelli aggiornati
     m_selection_points = m_temp_points;
     m_selection_cell_idx = m_temp_idx;
-    std::cout << " POST m_selection_points size: "<< m_selection_points.size() << std::endl;
+    std::cout << "POST m_selection_points size: "<< m_selection_points.size() << std::endl;
 }      
 
 // Queue needs to be copied because we'll exhaust it

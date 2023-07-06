@@ -534,7 +534,7 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 	//Necessario imporre un limite di edits, siccome senza il check sulla condizione ImGuizmo::Manipulate, 
 	//l'edit verrebbe svolto infinite volte (questo codice viene avviato in loop)
 
-//	if(number_of_edits < max_number_of_edits+1){			//definito in growing_selection.h				 
+	if(number_of_edits < max_number_of_edits){			//definito in growing_selection.h				 
 		if (cage_edition.selected_vertices.size() > 0 
 		&& (render_mode == ESelectionRenderMode::ProxyMesh 
 		|| render_mode == ESelectionRenderMode::TetMesh 
@@ -546,8 +546,8 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 		(float*)&edit_matrix, NULL, NULL)*/
 		) {
 			edited_guizmo = true;
-//			std::cout << "number_of_edits: " << number_of_edits << std::endl;
-//			number_of_edits ++;
+			std::cout << "number_of_edits: " << number_of_edits << std::endl;
+			number_of_edits ++;
 			matrix3_t guizmo_rotation;
 			point_t guizmo_translation;
 			point_t guizmo_scale = point_t(1.0f, 1.0f, 1.0f);
@@ -629,7 +629,7 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 			}
 			
 		}
-//	}
+	}
 
     if (render_mode == ESelectionRenderMode::ScreenSelection) {
         if (ImGui::IsKeyDown(SCREEN_SELECTION_KEY) && io.MouseDown[0]) {
