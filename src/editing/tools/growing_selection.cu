@@ -35,7 +35,8 @@
 #include <imguizmo/ImGuizmo.h>
 
 NGP_NAMESPACE_BEGIN
-
+const int max_number_of_iterations = 1;
+extern int num_of_iterations = 0;
 
 GrowingSelection::GrowingSelection(
         BoundingBox aabb,
@@ -126,7 +127,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 	bool growing_allowed = m_projected_cell_idx.size() > 0 || m_selection_points.size() > 0;
 	if (growing_allowed) {
 		ImGui::SameLine(); 
-		if(ImGui::Button("GROW REGION")) {
+		if(ImGui::Button("GROW_REGION")) {
 			grow_region();
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
@@ -535,7 +536,7 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 	//Necessario imporre un limite di edits, siccome senza il check sulla condizione ImGuizmo::Manipulate, 
 	//l'edit verrebbe svolto infinite volte (questo codice viene avviato in loop)
 
-	//if(num_of_iterations < max_number_of_edits){			//definito in growing_selection.h				 
+	if(num_of_iterations < max_number_of_iterations){			//definito in growing_selection.h				 
 		if (cage_edition.selected_vertices.size() > 0 
 		&& (render_mode == ESelectionRenderMode::ProxyMesh 
 		|| render_mode == ESelectionRenderMode::TetMesh 
@@ -547,8 +548,8 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 		(float*)&edit_matrix, NULL, NULL)*/
 		) {
 			edited_guizmo = true;
-			//std::cout << "number_of_edits: " << num_of_iterations << std::endl;
-			
+			std::cout << "number_of_edits: " << num_of_iterations << std::endl;
+			num_of_iterations++;
 			matrix3_t guizmo_rotation;
 			point_t guizmo_translation;
 			point_t guizmo_scale = point_t(1.0f, 1.0f, 1.0f);
@@ -630,7 +631,7 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 			}
 			
 		}
-//	}
+	}
 
     if (render_mode == ESelectionRenderMode::ScreenSelection) {
         if (ImGui::IsKeyDown(SCREEN_SELECTION_KEY) && io.MouseDown[0]) {
