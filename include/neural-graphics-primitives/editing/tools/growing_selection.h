@@ -31,8 +31,6 @@ static constexpr const char SCREEN_SELECTION_KEY = 'B';
 static constexpr const uint32_t DEBUG_CUBEMAP_WIDTH = 16;
 static constexpr const uint32_t DEBUG_ENVMAP_WIDTH = 256;
 static constexpr const uint32_t DEBUG_ENVMAP_HEIGHT = 128;
-const int max_number_of_edits = 1;
-int number_of_edits = 0;
 
 enum class ESelectionMode : int {
     PixelWise,
