@@ -3,6 +3,8 @@
 #include <neural-graphics-primitives/common_nerf.h>
 #include <cmath>
 #include <tiny-cuda-nn/common_device.h>
+#include <functional>
+#include <map>
 
 NGP_NAMESPACE_BEGIN
 
@@ -184,11 +186,19 @@ void RegionGrowing::equidistant_points(int min_ud_points_threshold) {
         return;
     }
 
+    std::hash<float> hashFunction;
+    std::size_t id;
+
     for (int i = 0; i < m_selection_points.size(); i++) {
         if (count % interval == 0) {
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
+            // Genera un ID basato sulle coordinate numeriche nel Vector3f e salva l'ID e la coordinata nella struttura dati
+            id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());
+            m_selection_points_map.insert(std::make_pair(id, m_selection_cell_idx[i]));
             //std::cout << "Growing point added A: "<< i << std::endl;
+            std::cout << "Growing point: "<< id << " added" << std::endl;
+
         }
         count++;
     }

@@ -22,6 +22,9 @@ enum class ERegionGrowingMode : int {
 };
 
 static constexpr const char* RegionGrowingModeStr = "Manual\0AppearanceBased\0\0";
+// Definizione del tipo di dato per memorizzare gli ID e le coordinate
+typedef std::map<std::size_t, Vector3f> CoordinateMap;
+CoordinateMap m_selection_points_map;
 
 class RegionGrowing {
 public:
@@ -49,6 +52,10 @@ public:
         return m_growing_level;
     }
 
+    const int get_min_ud_points_threshold() const {
+        return min_ud_points_threshold;
+    }
+
     void upscale_selection(int current_level);
 
     void grow_region(float density_threshold, ERegionGrowingMode region_growing_mode, int growing_level, int growing_steps);
@@ -66,7 +73,7 @@ private:
     const uint32_t m_max_cascade;
     uint32_t m_growing_level;
     bool equidistant_points_flag = true;
-    const int min_ud_points_threshold = 200;                   //soglia minima di punti equidistanti da ottenere
+    const int min_ud_points_threshold = 4;                   //soglia minima di punti equidistanti da ottenere
 
     // Const data from the NeRF model
     const tcnn::GPUMemory<float>& m_density_grid; // NERF_GRIDSIZE()^3 grid of EMA smoothed densities from the network

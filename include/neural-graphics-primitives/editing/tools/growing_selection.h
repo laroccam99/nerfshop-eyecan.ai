@@ -351,13 +351,17 @@ private:
     // Decimate fine mesh with linear bounding constraint
     void compute_proxy_mesh();
 
-
-
+    // Decimate all fine meshes  
+    void compute_all_proxy_mesh();
+    
     // Not used in practice
     void fix_fine_mesh();
 
     // Fix proxy mesh with MeshFix
     void fix_proxy_mesh();
+
+    // Fix all proxy meshes with MeshFix
+    void big_fix_proxy_mesh();
 
     // DEBUG: export the proxy mesh as a file
     void export_proxy_mesh();

@@ -548,7 +548,7 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 		(float*)&edit_matrix, NULL, NULL)*/
 		) {
 			edited_guizmo = true;
-			std::cout << "number_of_edits: " << num_of_iterations << std::endl;
+			//std::cout << "number_of_edits: " << num_of_iterations << std::endl;
 			num_of_iterations++;
 			matrix3_t guizmo_rotation;
 			point_t guizmo_translation;
@@ -943,20 +943,19 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 		}
 		cage_edition.selection_scaling = point_t::Ones();
 		
-		std::cout << "################################################select_scribbling()" << std::endl;
 		//Sostituito cage_edition.selection_barycenter IN MODO CHE NON DIPENDA DA UNA CAGE
 		//Sostituito cage_edition.selected_vertices con i punti rossi std::vector<Eigen::Vector3f> m_selection_points
 		//Compute the barycenter and rotation matrix of the selection
-		std::cout << "cage_edition.selected_vertices size: " << cage_edition.selected_vertices.size() << std::endl;
-		std::cout << "proxy_cage.vertices size: " << proxy_cage.vertices.size() << std::endl;
+		//std::cout << "cage_edition.selected_vertices size: " << cage_edition.selected_vertices.size() << std::endl;
+		//std::cout << "proxy_cage.vertices size: " << proxy_cage.vertices.size() << std::endl;
 
 		for (const auto selected_vertex : cage_edition.selected_vertices) {
 			cage_edition.selection_barycenter += proxy_cage.vertices[selected_vertex];
 		}
 		cage_edition.selection_barycenter /= cage_edition.selected_vertices.size();
 
-		std::cout << "Selected " << n_selected <<  " out of " << proxy_cage.vertices.size() << " vertices" << std::endl;
-		std::cout << "cage_edition.selection_barycenter ORIGINAL: " << cage_edition.selection_barycenter << std::endl;
+		//std::cout << "Selected " << n_selected <<  " out of " << proxy_cage.vertices.size() << " vertices" << std::endl;
+		//std::cout << "cage_edition.selection_barycenter ORIGINAL: " << cage_edition.selection_barycenter << std::endl;
 
 
 		for (const auto selected_point : m_selection_points) {
@@ -964,7 +963,7 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 		}
 		cage_edition.selection_barycenter /= m_selection_points.size();
 
-		std::cout << "cage_edition.selection_barycenter MODIFICATA: " << cage_edition.selection_barycenter << std::endl;
+		//std::cout << "cage_edition.selection_barycenter MODIFICATA: " << cage_edition.selection_barycenter << std::endl;
 
 	}
 }
@@ -1048,20 +1047,19 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 		}
 		cage_edition.selection_scaling = point_t::Ones();
 
-		std::cout << "################################################select_cage_rect()" << std::endl;
 		//Sostituito cage_edition.selection_barycenter IN MODO CHE NON DIPENDA DA UNA CAGE
 		//Sostituito cage_edition.selected_vertices con i punti rossi std::vector<Eigen::Vector3f> m_selection_points
 		//Compute the barycenter and rotation matrix of the selection
-		std::cout << "cage_edition.selected_vertices size: " << cage_edition.selected_vertices.size() << std::endl;
-		std::cout << "proxy_cage.vertices size: " << proxy_cage.vertices.size() << std::endl;
+		//std::cout << "cage_edition.selected_vertices size: " << cage_edition.selected_vertices.size() << std::endl;
+		//std::cout << "proxy_cage.vertices size: " << proxy_cage.vertices.size() << std::endl;
 
 		for (const auto selected_vertex: cage_edition.selected_vertices) {
 			cage_edition.selection_barycenter += proxy_cage.vertices[selected_vertex];
 		}
 		cage_edition.selection_barycenter /= cage_edition.selected_vertices.size();
 
-		std::cout << "Selected " << n_selected <<  " out of " << proxy_cage.vertices.size() << " vertices" << std::endl;
-		std::cout << "cage_edition.selection_barycenter ORIGINAL: " << cage_edition.selection_barycenter << std::endl;
+		//std::cout << "Selected " << n_selected <<  " out of " << proxy_cage.vertices.size() << " vertices" << std::endl;
+		//std::cout << "cage_edition.selection_barycenter ORIGINAL: " << cage_edition.selection_barycenter << std::endl;
 
 
 		for (const auto selected_point : m_selection_points) {
@@ -1069,7 +1067,7 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 		}
 		cage_edition.selection_barycenter /= m_selection_points.size();
 
-		std::cout << "cage_edition.selection_barycenter MODIFICATA: " << cage_edition.selection_barycenter << std::endl;
+		//std::cout << "cage_edition.selection_barycenter MODIFICATA: " << cage_edition.selection_barycenter << std::endl;
 
 	}
 }
@@ -1077,6 +1075,8 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 //Launched wih compute 
 void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices)
 {
+	std::cout << "GrowingSelection::set_proxy_mesh()" << std::endl;
+
 	render_mode = ESelectionRenderMode::ProxyMesh;
 
 	// Create the associated cage!
@@ -1097,8 +1097,11 @@ void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<
 
 	std::cout << "Computed proxy with " << points.size() << " vertices and " << indices.size() / 3 << " triangles" << std::endl;
 }
+
 //Launched by GrowingSelection::fix_proxy_mesh()
 void GrowingSelection::compute_proxy_mesh() {
+	std::cout << "GrowingSelection::compute_proxy_mesh()" << std::endl;
+
 	// If there is no selection mesh, extract it!
 	if (selection_mesh.vertices.size() == 0) {
 		extract_fine_mesh();
@@ -1118,7 +1121,7 @@ void GrowingSelection::compute_proxy_mesh() {
 	Eigen::MatrixXi input_F(n_indices / 3, 3);
 	for (int i = 0; i < n_verts; i++) {
 		input_V.row(i) = selection_mesh.vertices[i].cast<double>();
-	}
+	}	
 	for (int i = 0; i < n_indices / 3; i++) {
 		input_F.row(i) << selection_mesh.indices[3*i], selection_mesh.indices[3*i+2], selection_mesh.indices[3*i+1];
 	}
@@ -1166,6 +1169,83 @@ void GrowingSelection::compute_proxy_mesh() {
 	}
 	
 	set_proxy_mesh(new_vertices_proxy, new_indices_proxy);
+}
+
+//ADATTARE IN MODO DA FAR CREARE UNA PROXY MESH PER OGNI PUNTO NEL m_selection_points
+void GrowingSelection::compute_all_proxy_mesh() {
+	std::cout << "GrowingSelection::compute_all_proxy_mesh()" << std::endl;
+	std::cout << "m_selection_points.size(): " << m_selection_points.size() << std::endl;
+	for (int i=0; i<m_selection_points.size(); i++){
+		
+
+		// If there is no selection mesh, extract it!
+		if (selection_mesh.vertices.size() == 0) {
+			extract_fine_mesh();
+		}
+
+		// Clear selected vertices
+		cage_edition.selected_vertices.clear();
+
+		// Copy to CPU
+		uint32_t n_verts = selection_mesh.vertices.size();
+		uint32_t n_indices = selection_mesh.indices.size();
+
+		std::vector<point_t> new_vertices_proxy;
+		std::vector<uint32_t> new_indices_proxy;
+
+		Eigen::MatrixXd input_V(n_verts, 3);
+		Eigen::MatrixXi input_F(n_indices / 3, 3);
+		for (int i = 0; i < n_verts; i++) {
+			input_V.row(i) = selection_mesh.vertices[i].cast<double>();
+		}	
+		for (int i = 0; i < n_indices / 3; i++) {
+			input_F.row(i) << selection_mesh.indices[3*i], selection_mesh.indices[3*i+2], selection_mesh.indices[3*i+1];
+		}
+		Eigen::MatrixXd output_V;
+		Eigen::MatrixXi output_F;
+		Eigen::VectorXi output_J;
+		if (m_decimation_algorithm == EDecimationAlgorithm::ShortestEdge) {
+			igl::decimate(input_V, input_F, proxy_size, output_V, output_F, output_J);
+		} else if (m_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsQuadratic) {
+			if (m_progressive_hulls_params.presimplify) {
+				igl::decimate(input_V, input_F, std::max(proxy_size, int(m_progressive_hulls_params.presimplification_ratio * input_F.rows())), output_V, output_F, output_J);
+				input_F = output_F;
+				input_V = output_V;
+			}
+			bool success = progressive_hulls_quadratic(input_V, input_F, proxy_size, output_V, output_F, output_J, m_progressive_hulls_params);
+			if (!success) {
+				std::cout << "Failed to compute progressive hulls, please try again!" << std::endl;
+				return;
+			}
+		} else if (m_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsLinear) {
+			if (m_progressive_hulls_params.presimplify) {
+				igl::decimate(input_V, input_F, std::max(proxy_size, int(m_progressive_hulls_params.presimplification_ratio * input_F.rows())), output_V, output_F, output_J);
+				input_F = output_F;
+				input_V = output_V;
+			}
+			bool success = progressive_hulls_linear(input_V, input_F, proxy_size, output_V, output_F, output_J, m_progressive_hulls_params);
+			if (!success) {
+				std::cout << "Failed to compute progressive hulls, please try again!" << std::endl;
+				return;
+			}
+		}
+
+		n_verts = output_V.rows();
+		n_indices = output_F.rows()*3;
+		new_vertices_proxy.resize(n_verts);
+		new_indices_proxy.resize(n_indices);
+
+		for (int i = 0; i < n_verts; i++) {
+			new_vertices_proxy[i] = output_V.row(i).cast<float_t>();
+		}
+		for (int i = 0; i < output_F.rows(); i++) {
+			new_indices_proxy[3*i] = output_F.row(i)(0);
+			new_indices_proxy[3*i+1] = output_F.row(i)(1);
+			new_indices_proxy[3*i+2] = output_F.row(i)(2);
+		}
+		
+		set_proxy_mesh(new_vertices_proxy, new_indices_proxy);
+	}	
 }
 
 void GrowingSelection::fix_fine_mesh() {
@@ -1322,6 +1402,70 @@ void GrowingSelection::fix_proxy_mesh() {
 		std::cout << "Meshfix had nothing to fix" << std::endl;
 		return;
 	}
+	//To store the vertices and indices of the proxy_cage, 
+	//It loops through the vertices and indices of the "proxy_cage" 
+	//and assigns their values to the corresponding rows of the Eigen matrices
+	Eigen::MatrixXd input_V(n_verts, 3);
+	Eigen::MatrixXi input_F(n_indices / 3, 3);
+	for (int i = 0; i < n_verts; i++) {
+		input_V.row(i) = proxy_cage.original_vertices[i].cast<double>();
+	}
+	for (int i = 0; i < n_indices / 3; i++) {
+		input_F.row(i) << proxy_cage.indices[3*i], proxy_cage.indices[3*i+1], proxy_cage.indices[3*i+2];
+	}
+
+	Eigen::MatrixXd output_V;
+	Eigen::MatrixXi output_F;
+	meshfix(input_V, input_F, output_V, output_F);
+	n_verts = output_V.rows();
+	n_indices = output_F.rows()*3;
+
+	std::vector<point_t> new_vertices_proxy;
+	std::vector<uint32_t> new_indices_proxy;
+	new_vertices_proxy.resize(n_verts);
+	new_indices_proxy.resize(n_indices);
+	for (int i = 0; i < n_verts; i++) {
+		new_vertices_proxy[i] = output_V.row(i).cast<float_t>();
+	}
+	for (int i = 0; i < output_F.rows(); i++) {
+		new_indices_proxy[3*i] = output_F.row(i)(0);
+		new_indices_proxy[3*i+1] = output_F.row(i)(1);
+		new_indices_proxy[3*i+2] = output_F.row(i)(2);
+	}
+
+	// Create the associated cage!
+    proxy_cage = Cage<float_t, point_t>(new_vertices_proxy, new_indices_proxy);
+	std::cout << "Proxy cage Created!" << std::endl;
+
+	//Set the proxy mesh using the new vertices and indices
+    for (int i = 0; i < proxy_cage.colors.size(); i++) {
+        proxy_cage.colors[i] = Eigen::Vector3f(
+            m_cage_color[0],
+            m_cage_color[1],
+            m_cage_color[2]);
+    }
+	std::cout << "Fixed proxy cage with meshfix" << std::endl;
+}
+
+//GUI Button "Compute Proxy" First function NON UTILIZZATA E DA CANCELLARE
+void GrowingSelection::big_fix_proxy_mesh() {
+
+	// If there is no proxy, extract one!
+	if (proxy_cage.vertices.size() == 0) {
+		compute_proxy_mesh();
+	}
+
+	// Reset vertices to original_vertices! (in cage the cage was edited inbetween)
+	proxy_cage.reset_original_vertices();
+
+	uint32_t n_verts = proxy_cage.vertices.size();
+	uint32_t n_indices = proxy_cage.indices.size();
+
+	if (n_verts == 0 || n_indices == 0)
+	{
+		std::cout << "Meshfix had nothing to fix" << std::endl;
+		return;
+	}
 
 	Eigen::MatrixXd input_V(n_verts, 3);
 	Eigen::MatrixXi input_F(n_indices / 3, 3);
@@ -1351,16 +1495,16 @@ void GrowingSelection::fix_proxy_mesh() {
 	}
 
 	// Create the associated cage!
-    proxy_cage = Cage<float_t, point_t>(new_vertices_proxy, new_indices_proxy);
+	proxy_cage = Cage<float_t, point_t>(new_vertices_proxy, new_indices_proxy);
 
-    for (int i = 0; i < proxy_cage.colors.size(); i++) {
-        proxy_cage.colors[i] = Eigen::Vector3f(
-            m_cage_color[0],
-            m_cage_color[1],
-            m_cage_color[2]);
-    }
+	for (int i = 0; i < proxy_cage.colors.size(); i++) {
+		proxy_cage.colors[i] = Eigen::Vector3f(
+			m_cage_color[0],
+			m_cage_color[1],
+			m_cage_color[2]);
+	}
 
-	// std::cout << "Fixed proxy cage with meshfix" << std::endl;
+	// std::cout << "Fixed proxy cage with meshfix" << std::endl;	
 }
 
 void GrowingSelection::clear() {
@@ -2102,7 +2246,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 
 	// printf("Shot %u rays but counted %u only.\n", n_rays, ray_counter_host);
 
-	//Update the  m_growing_level  based on the maximum level found in the grid indices
+	//Update the m_growing_level based on the maximum level found in the grid indices
 	// If automatic level selection is on, we need to find the maximum level and set the growing level accordingly
 	if (m_automatic_max_level) {
 		m_growing_level = 0;
@@ -2123,7 +2267,9 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 	
 	// Set to avoid duplicate cell_idx
 	std::set<uint32_t> cell_idx_set;
-	int max_surface_points = 2000;			//limite di punti rossi desiderati ottenuti con scribbling
+	//In generale servirà uno scribbling vasto, prendendo moltissimi punti iniziali (solo in seguito limitati da max_surface_points)
+	//BISOGNA AUTOMATIZZARE QUESTA FASE, permettendo di selezionare pochi punti superficiali randomici e distanti.
+//	int max_surface_points = 2000;			//limite di punti rossi desiderati ottenuti con scribbling
 	//Loop through the rays and update the projected cell indices, projected pixels, projected labels, and the cell index set
 	// Check for rays that did not reach transmittance and discards them if they are outside the requested level
 	// TODO: do something cleaner here...
@@ -2133,7 +2279,6 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 			if (m_aabb.contains(m_projected_pixels_tmp[i])) {
 				//Get the level of the current grid index
 				uint32_t level = grid_indices_host_tmp[i] / NERF_GRIDVOLUME();
-//				std::cout << "####################################" << std::endl;
 //				std::cout << "Pixel " << i << "is within the AABB" << std::endl;
 				//If the level is greater than the growing level, discard it
 				// NOTE: should not happen with automatic level selection
@@ -2251,6 +2396,7 @@ void GrowingSelection::erode() {
 
 // TODO: work directly on the bitfield computed before instead of float (we have a 0/1 occupancy field)
 void GrowingSelection::extract_fine_mesh() {
+	std::cout << "GrowingSelection::extract_fine_mesh()" << std::endl;
 
 	// Make sure dilation erosion are performed before extracting the mesh 
 	if (m_use_morphological && !m_performed_closing) {
