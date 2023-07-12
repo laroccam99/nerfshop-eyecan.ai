@@ -52,8 +52,8 @@ public:
         return m_growing_level;
     }
 
-    const int get_min_ud_points_threshold() const {
-        return min_ud_points_threshold;
+    int get_min_ed_points_threshold() const {
+        return min_ed_points_threshold;
     }
 
     void upscale_selection(int current_level);
@@ -73,7 +73,7 @@ private:
     const uint32_t m_max_cascade;
     uint32_t m_growing_level;
     bool equidistant_points_flag = true;
-    const int min_ud_points_threshold = 4;                   //soglia minima di punti equidistanti da ottenere
+    const int min_ed_points_threshold = 200;                   //soglia minima di punti equidistanti da ottenere
 
     // Const data from the NeRF model
     const tcnn::GPUMemory<float>& m_density_grid; // NERF_GRIDSIZE()^3 grid of EMA smoothed densities from the network

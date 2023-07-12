@@ -5,6 +5,8 @@
 #include <tiny-cuda-nn/common_device.h>
 #include <functional>
 #include <map>
+#include <unordered_set>
+#include <iterator>
 
 NGP_NAMESPACE_BEGIN
 
@@ -139,12 +141,19 @@ void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode regi
                 m_selection_points.push_back(cell_pos);
                 m_selection_cell_idx.push_back(current_cell);
                 set_bitfield_at(pos_idx, level, true, m_selection_grid_bitfield.data());
+                //std::cout << "m_selection_cell_idx: " << current_cell << std::endl;
             }
             i++;
         }
+ 
+        //SI POTREBBE AGGIUNGERE QUI UN CONTROLLO SUI DUPLICATI
+		//aggiungere tutto ad un set e poi assegnare il contenuto a m_selection_points, 
+        //ma bisognerebbe anche sistemare m_selection_cell_idx e m_selection_grid_bitfield
+        
         if (equidistant_points_flag){               //Check per attivare o no la modalità punti superficiali equidistanti 
-            equidistant_points(min_ud_points_threshold);
+            equidistant_points(min_ed_points_threshold);
         } 
+
     }
     // TODO: not supported yet!!!!!!! 
     else {
@@ -172,14 +181,14 @@ void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode regi
 }
 
 //Codice aggiunto per selezionare in modo uniforme solo alcuni punti superficiali distanti; si ferma al raggiungimento della soglia minima
-void RegionGrowing::equidistant_points(int min_ud_points_threshold) {
+void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
     std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
     //Vettori temporanei 
     std::vector<Eigen::Vector3f> m_temp_points;
     std::vector<uint32_t> m_temp_idx;
 
     //Ogni quanti punti bisogna salvarne 1 (per prendere punti distanti in modo uniforme)
-    int interval = static_cast<int>(std::round(static_cast<double>(m_selection_points.size()) /  min_ud_points_threshold));
+    int interval = static_cast<int>(std::round(static_cast<double>(m_selection_points.size()) /  min_ed_points_threshold));
     int count = 0;                                                                                  //counter per scorrere l'array
     if (interval == 0){
          std::cout << "RegionGrowing::equidistant_points() failed: Not enough superficial points selected. Try with a higher growing level."<< std::endl;
@@ -197,8 +206,7 @@ void RegionGrowing::equidistant_points(int min_ud_points_threshold) {
             id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());
             m_selection_points_map.insert(std::make_pair(id, m_selection_cell_idx[i]));
             //std::cout << "Growing point added A: "<< i << std::endl;
-            std::cout << "Growing point: "<< id << " added" << std::endl;
-
+            //std::cout << "Growing point: "<< id << " added" << std::endl;
         }
         count++;
     }
@@ -210,7 +218,7 @@ void RegionGrowing::equidistant_points(int min_ud_points_threshold) {
 }  
 
 //Seleziona in modo uniforme solo alcuni punti superficiali distanti; intervallo scelto dall'utente; continua finchè non supera la soglia minima
-void RegionGrowing::equidistant_points(int min_ud_points_threshold, int interval) {
+void RegionGrowing::equidistant_points(int e, int interval) {
     std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
     //Vettori temporanei 
     std::vector<Eigen::Vector3f> m_temp_points;
@@ -227,7 +235,7 @@ void RegionGrowing::equidistant_points(int min_ud_points_threshold, int interval
     }
 
     int interval2 = 0;
-    int remaining_ud_points = min_ud_points_threshold - m_temp_points.size();
+    int remaining_ud_points = e - m_temp_points.size();
     if ( remaining_ud_points > 0) {
         interval2 = static_cast<int>(m_selection_points.size() / remaining_ud_points);
         if (interval == 0){

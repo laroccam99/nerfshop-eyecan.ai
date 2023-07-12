@@ -37,6 +37,8 @@
 NGP_NAMESPACE_BEGIN
 const int max_number_of_iterations = 1;
 extern int num_of_iterations = 0;
+//std::set<GrowingSelection> GS_Set;		//inutilizzato
+
 
 GrowingSelection::GrowingSelection(
         BoundingBox aabb,
@@ -1175,8 +1177,11 @@ void GrowingSelection::compute_proxy_mesh() {
 void GrowingSelection::compute_all_proxy_mesh() {
 	std::cout << "GrowingSelection::compute_all_proxy_mesh()" << std::endl;
 	std::cout << "m_selection_points.size(): " << m_selection_points.size() << std::endl;
+
+
 	for (int i=0; i<m_selection_points.size(); i++){
-		
+		//AGGIUNGERE CONTROLLO SUI DUPLICATI
+		std::cout << "Selection point" << i << " : " << m_selection_points[i] << std::endl;
 
 		// If there is no selection mesh, extract it!
 		if (selection_mesh.vertices.size() == 0) {
@@ -2381,7 +2386,7 @@ void GrowingSelection::grow_region() {
 }
 
 void GrowingSelection::dilate() {
-	
+	//Aggiungere parametri alla funzione dilate per poi passarli al dilate interno
 	m_selection_grid_bitfield = m_MM_operations->dilate(m_selection_grid_bitfield, m_growing_level, m_selection_points, m_selection_cell_idx);
 
 	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
@@ -2389,6 +2394,8 @@ void GrowingSelection::dilate() {
 
 
 void GrowingSelection::erode() {
+	//Aggiungere parametri alla funzione erode per poi passarli al erode interno
+
 	m_selection_grid_bitfield = m_MM_operations->erode(m_selection_grid_bitfield, m_growing_level, m_selection_points, m_selection_cell_idx);
 
 	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);

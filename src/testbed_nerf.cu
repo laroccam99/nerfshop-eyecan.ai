@@ -4620,7 +4620,6 @@ int Testbed::marching_cubes(Vector3i res3d, const BoundingBox& aabb, float thres
 	res3d.z() = next_multiple((unsigned int)res3d.z(), 16u);
 
 	std::cout << "Testbed::marching_cubes()#####################" << std::endl;
-	int a = 676767;
 	if (thresh == std::numeric_limits<float>::max()) {
 		thresh = m_mesh.thresh;
 	}
