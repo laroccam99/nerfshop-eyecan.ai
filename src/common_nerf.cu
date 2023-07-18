@@ -1,7 +1,7 @@
 #include <neural-graphics-primitives/common_nerf.h>
 
 NGP_NAMESPACE_BEGIN
-
+//forse utile per rintracciare coordinate
 __host__ __device__ Eigen::Vector3f warp_position(const Eigen::Vector3f& pos, const BoundingBox& aabb) {
 	// return {tcnn::logistic(pos.x() - 0.5f), tcnn::logistic(pos.y() - 0.5f), tcnn::logistic(pos.z() - 0.5f)};
 	// return pos;
@@ -150,10 +150,12 @@ __device__ float& cascaded_grid_at(Vector3f pos, float* cascaded_grid, uint32_t 
 	return cascaded_grid[idx+grid_mip_offset(mip)];
 }
 
+//Launched by RegionGrowing::grow_region()
 __host__ __device__ bool get_bitfield_at(const uint32_t cell_idx, const uint32_t level, const uint8_t* bitfield)  {
 	return bitfield[cell_idx/8+grid_mip_offset(level)/8] & (1<<(cell_idx%8));
 }
 
+//Launched by RegionGrowing::grow_region()
 __host__ __device__ void set_bitfield_at(const uint32_t cell_idx, const uint32_t level, const bool value, uint8_t* bitfield) {
 	uint32_t selected_bit = cell_idx%8;
 	uint32_t mask = 1 << selected_bit;
@@ -215,6 +217,7 @@ NetworkDims network_dims_nerf() {
 	return dims;
 }
 
+//Launched when building the proxy cage
 __host__ __device__ Eigen::Vector3f evaluate_sh9(const SH9RGB& sh, const Eigen::Vector3f dir) {
 	// Adapted from https://jcgt.org/published/0002/02/06/paper.pdf
 

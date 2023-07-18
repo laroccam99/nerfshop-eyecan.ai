@@ -1,12 +1,17 @@
 #include <neural-graphics-primitives/editing/tools/region_growing.h>
 #include <neural-graphics-primitives/editing/tools/selection_utils.h>
 #include <neural-graphics-primitives/common_nerf.h>
-
+#include <cmath>
 #include <tiny-cuda-nn/common_device.h>
+#include <functional>
+#include <map>
+#include <unordered_set>
+#include <iterator>
 
 NGP_NAMESPACE_BEGIN
 
-// Reset the growing selection grid
+//GUI Button "Clear Selection"
+// Launched by GrowingSelection::reset_growing selection grid
 void RegionGrowing::reset_growing(const std::vector<uint32_t>& selected_cells, int growing_level) {
     // Copy the density grid
     m_density_grid_host.resize(m_density_grid.size());
@@ -90,6 +95,7 @@ void RegionGrowing::upscale_selection(int current_level) {
     m_growing_queue = new_growing_queue;
 }
 
+//GUI Button "Grow region", second function
 void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode region_growing_mode, int growing_level, int growing_steps) {
     // Make sure we can actually grow!
     if (m_growing_queue.empty()) {
@@ -135,9 +141,19 @@ void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode regi
                 m_selection_points.push_back(cell_pos);
                 m_selection_cell_idx.push_back(current_cell);
                 set_bitfield_at(pos_idx, level, true, m_selection_grid_bitfield.data());
+                //std::cout << "m_selection_cell_idx: " << current_cell << std::endl;
             }
             i++;
         }
+ 
+        //SI POTREBBE AGGIUNGERE QUI UN CONTROLLO SUI DUPLICATI
+		//aggiungere tutto ad un set e poi assegnare il contenuto a m_selection_points, 
+        //ma bisognerebbe anche sistemare m_selection_cell_idx e m_selection_grid_bitfield
+        
+        if (equidistant_points_flag){               //Check per attivare o no la modalità punti superficiali equidistanti 
+            equidistant_points(min_ed_points_threshold);
+        } 
+
     }
     // TODO: not supported yet!!!!!!! 
     else {
@@ -163,6 +179,89 @@ void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode regi
     }
     // std::cout << "Selected " << m_selection_points.size() << " points overall" << std::endl;
 }
+
+//Codice aggiunto per selezionare in modo uniforme solo alcuni punti superficiali distanti; si ferma al raggiungimento della soglia minima
+void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
+    std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
+    //Vettori temporanei 
+    std::vector<Eigen::Vector3f> m_temp_points;
+    std::vector<uint32_t> m_temp_idx;
+
+    //Ogni quanti punti bisogna salvarne 1 (per prendere punti distanti in modo uniforme)
+    int interval = static_cast<int>(std::round(static_cast<double>(m_selection_points.size()) /  min_ed_points_threshold));
+    int count = 0;                                                                                  //counter per scorrere l'array
+    if (interval == 0){
+         std::cout << "RegionGrowing::equidistant_points() failed: Not enough superficial points selected. Try with a higher growing level."<< std::endl;
+        return;
+    }
+
+    std::hash<float> hashFunction;
+    std::size_t id;
+
+    for (int i = 0; i < m_selection_points.size(); i++) {
+        if (count % interval == 0) {
+            m_temp_points.push_back(m_selection_points[i]);
+            m_temp_idx.push_back(m_selection_cell_idx[i]);
+            // Genera un ID basato sulle coordinate numeriche nel Vector3f e salva l'ID e la coordinata nella struttura dati
+            id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());
+            m_selection_points_map.insert(std::make_pair(id, m_selection_cell_idx[i]));
+            //std::cout << "Growing point added A: "<< i << std::endl;
+            //std::cout << "Growing point: "<< id << " added" << std::endl;
+        }
+        count++;
+    }
+
+    // Sostituisci i vecchi vettori con quelli aggiornati
+    m_selection_points = m_temp_points;
+    m_selection_cell_idx = m_temp_idx;
+    std::cout << "POST m_selection_points size: "<< m_selection_points.size() << std::endl;
+}  
+
+//Seleziona in modo uniforme solo alcuni punti superficiali distanti; intervallo scelto dall'utente; continua finchè non supera la soglia minima
+void RegionGrowing::equidistant_points(int e, int interval) {
+    std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
+    //Vettori temporanei 
+    std::vector<Eigen::Vector3f> m_temp_points;
+    std::vector<uint32_t> m_temp_idx;
+    int count = 0;                                                                              //counter per scorrere l'array
+
+    for (int i = 0; i < m_selection_points.size(); i++) {
+        if (count % interval == 0) {
+            m_temp_points.push_back(m_selection_points[i]);
+            m_temp_idx.push_back(m_selection_cell_idx[i]);
+            //std::cout << "Growing point added A: "<< i << std::endl;
+        }
+        count++;
+    }
+
+    int interval2 = 0;
+    int remaining_ud_points = e - m_temp_points.size();
+    if ( remaining_ud_points > 0) {
+        interval2 = static_cast<int>(m_selection_points.size() / remaining_ud_points);
+        if (interval == 0){
+            std::cout << "RegionGrowing::equidistant_points() failed: Not enough superficial points selected. Try with a higher growing level."<< std::endl;
+            return;
+        }
+        for (int i = 0; i < m_selection_points.size() && remaining_ud_points > 0; i++) {
+            if (count % interval2 == 0) {
+                auto it = std::find(m_temp_points.begin(), m_temp_points.end(), m_selection_points[i]); //restituisce puntatore a ultimo elemento, se non trova l'oggetto
+                if (it == m_temp_points.end()) {                            //se l'oggetto non è presente, viene aggiunto 
+                    m_temp_points.push_back(m_selection_points[i]);
+                    m_temp_idx.push_back(m_selection_cell_idx[i]);
+                    remaining_ud_points--;
+                    //std::cout << "Growing point added B: "<< i << std::endl;
+                }
+                
+            }
+            count++;
+        }
+    }
+    
+    // Sostituisci i vecchi vettori con quelli aggiornati
+    m_selection_points = m_temp_points;
+    m_selection_cell_idx = m_temp_idx;
+    std::cout << "POST m_selection_points size: "<< m_selection_points.size() << std::endl;
+}      
 
 // Queue needs to be copied because we'll exhaust it
 template <typename T>
