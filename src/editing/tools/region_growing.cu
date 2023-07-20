@@ -4,9 +4,6 @@
 #include <cmath>
 #include <tiny-cuda-nn/common_device.h>
 #include <functional>
-#include <map>
-#include <unordered_set>
-#include <iterator>
 
 NGP_NAMESPACE_BEGIN
 
@@ -197,6 +194,7 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
 
     std::hash<float> hashFunction;
     std::size_t id;
+    hello_world pino;
 
     for (int i = 0; i < m_selection_points.size(); i++) {
         if (count % interval == 0) {
@@ -204,7 +202,11 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
             m_temp_idx.push_back(m_selection_cell_idx[i]);
             // Genera un ID basato sulle coordinate numeriche nel Vector3f e salva l'ID e la coordinata nella struttura dati
             id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());
-            m_selection_points_map.insert(std::make_pair(id, m_selection_cell_idx[i]));
+//            std::map<std::size_t, Eigen::Vector3f> selection_map = RegionGrowing::m_selection_points_map;
+//            m_selection_points_map.insert(std::make_pair(id, m_selection_cell_idx[i]));
+
+            std::cout << "Growing point added A: "<< pino.getPrivateString() << std::endl;
+
             //std::cout << "Growing point added A: "<< i << std::endl;
             //std::cout << "Growing point: "<< id << " added" << std::endl;
         }
@@ -234,6 +236,8 @@ void RegionGrowing::equidistant_points(int e, int interval) {
         count++;
     }
 
+    std::hash<float> hashFunction;
+    std::size_t id;
     int interval2 = 0;
     int remaining_ud_points = e - m_temp_points.size();
     if ( remaining_ud_points > 0) {
@@ -248,6 +252,9 @@ void RegionGrowing::equidistant_points(int e, int interval) {
                 if (it == m_temp_points.end()) {                            //se l'oggetto non è presente, viene aggiunto 
                     m_temp_points.push_back(m_selection_points[i]);
                     m_temp_idx.push_back(m_selection_cell_idx[i]);
+                    // Genera un ID basato sulle coordinate numeriche nel Vector3f e salva l'ID e la coordinata nella struttura dati
+                    id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());
+//                    RegionGrowing::m_selection_points_map.insert(std::make_pair(id, m_selection_cell_idx[i]));
                     remaining_ud_points--;
                     //std::cout << "Growing point added B: "<< i << std::endl;
                 }

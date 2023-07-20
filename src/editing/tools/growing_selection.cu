@@ -1176,11 +1176,25 @@ void GrowingSelection::compute_all_proxy_mesh() {
 	std::cout << "GrowingSelection::compute_all_proxy_mesh()" << std::endl;
 	std::cout << "m_selection_points.size(): " << m_selection_points.size() << std::endl;
 
-
+//	std::map<std::size_t, Eigen::Vector3f> selection_map = RegionGrowing::getSelectionPointsMap();
 	for (int i=0; i<m_selection_points.size(); i++){
 		//AGGIUNGERE CONTROLLO SUI DUPLICATI
-		std::cout << "Selection point" << i << " : " << m_selection_points[i] << std::endl;
+/*		std::cout << "Selection point" << i << " : " << m_selection_points[i] << std::endl;
+		
+		
+    	std::cout << "RegionGrowing::m_selection_points_map.size() " << selection_map.size() << std::endl;
 
+		
+
+
+		// Esegui l'iterazione sulla mappa...
+		for (const auto& pair : selection_map) {
+			// Esegui le operazioni desiderate con la coppia key-value
+			std::size_t key = pair.first;
+			Vector3f value = pair.second;
+			// ...
+		}
+*/
 		// If there is no selection mesh, extract it!
 		if (selection_mesh.vertices.size() == 0) {
 			extract_fine_mesh();

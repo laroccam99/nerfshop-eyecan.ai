@@ -2,7 +2,7 @@
 
 #include <neural-graphics-primitives/common.h>
 #include <neural-graphics-primitives/json_binding.h>
-
+#include <neural-graphics-primitives/hello_world.h>
 #include <tiny-cuda-nn/common.h>
 #include <tiny-cuda-nn/gpu_matrix.h>
 
@@ -22,8 +22,6 @@ enum class ERegionGrowingMode : int {
 };
 
 static constexpr const char* RegionGrowingModeStr = "Manual\0AppearanceBased\0\0";
-// Definizione del tipo di dato per memorizzare gli ID e le coordinate
-typedef std::map<std::size_t, Vector3f> CoordinateMap;
 
 class RegionGrowing {
 public:
@@ -80,7 +78,7 @@ private:
     std::vector<uint32_t> m_selection_cell_idx;
     std::vector<float> m_density_grid_host;
     std::queue<uint32_t> m_growing_queue;
-    CoordinateMap m_selection_points_map;
+
 };
 
 NGP_NAMESPACE_END
