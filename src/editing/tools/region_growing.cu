@@ -194,7 +194,10 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
 
     std::hash<float> hashFunction;
     std::size_t id;
-    hello_world pino;
+    hello_world helloObj;
+    std::string stringaHello = helloObj.getPrivateString();   
+    selection_map selection_mapObj;
+    std::map<std::size_t, Eigen::Vector3f> selection_points_map = selection_mapObj.getPrivateMap();
 
     for (int i = 0; i < m_selection_points.size(); i++) {
         if (count % interval == 0) {
@@ -204,8 +207,11 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
             id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());
 //            std::map<std::size_t, Eigen::Vector3f> selection_map = RegionGrowing::m_selection_points_map;
 //            m_selection_points_map.insert(std::make_pair(id, m_selection_cell_idx[i]));
-
-            std::cout << "Growing point added A: "<< pino.getPrivateString() << std::endl;
+            
+            std::cout << "Ti saluto: " << stringaHello << std::endl;
+            std::cout << "Vector : " << selection_points_map.at(0) << std::endl;
+            std::cout << "Vector : " << selection_points_map.at(1) << std::endl;
+            std::cout << "Vector : " << selection_points_map.at(2) << std::endl;
 
             //std::cout << "Growing point added A: "<< i << std::endl;
             //std::cout << "Growing point: "<< id << " added" << std::endl;

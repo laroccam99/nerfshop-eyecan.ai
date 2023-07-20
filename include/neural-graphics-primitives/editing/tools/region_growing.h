@@ -3,6 +3,7 @@
 #include <neural-graphics-primitives/common.h>
 #include <neural-graphics-primitives/json_binding.h>
 #include <neural-graphics-primitives/hello_world.h>
+#include <neural-graphics-primitives/selection_map.h>
 #include <tiny-cuda-nn/common.h>
 #include <tiny-cuda-nn/gpu_matrix.h>
 
