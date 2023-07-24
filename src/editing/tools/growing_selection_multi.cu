@@ -1,7 +1,7 @@
 #include <neural-graphics-primitives/common_gl.h>
 #include <neural-graphics-primitives/common_device.cuh>
 #include <neural-graphics-primitives/common_nerf.h>
-#include <neural-graphics-primitives/editing/tools/growing_selection.h>
+#include <neural-graphics-primitives/editing/tools/growing_selection_multi.h>
 #include <neural-graphics-primitives/editing/tools/selection_utils.h>
 #include <neural-graphics-primitives/editing/tools/default_mm_operations.h>
 #include <neural-graphics-primitives/editing/tools/correct_mm_operations.h>
@@ -35,10 +35,10 @@
 #include <imguizmo/ImGuizmo.h>
 
 NGP_NAMESPACE_BEGIN
-const int max_number_of_iterations = 1;
-extern int num_of_iterations = 0;
+const int multi_max_number_of_iterations = 1;
+extern int multi_num_of_iterations = 0;
 
-GrowingSelection::GrowingSelection(
+GrowingSelectionMulti::GrowingSelectionMulti(
         BoundingBox aabb,
         cudaStream_t stream, 
         const std::shared_ptr<NerfNetwork<precision_t>> nerf_network, 
@@ -51,34 +51,34 @@ GrowingSelection::GrowingSelection(
         const std::string default_envmap_path,
 		const uint32_t max_cascade
     ) : 
-        m_aabb{aabb},
-        m_stream{stream}, 
-        m_nerf_network{nerf_network},
-        m_density_grid{density_grid},
-        m_density_grid_bitfield{density_grid_bitfield},
-        m_cone_angle_constant{cone_angle_constant},
-        m_rgb_activation{rgb_activation},
-        m_density_activation{density_activation},
-        m_light_dir{light_dir},
-		m_default_envmap_path{default_envmap_path},
-		m_region_growing(density_grid, density_grid_bitfield, max_cascade),
-		m_MM_operations{new CorrectMMOperations()},
-		m_max_cascade{max_cascade} {
+        multi_aabb{aabb},
+        multi_stream{stream}, 
+        multi_nerf_network{nerf_network},
+        multi_density_grid{density_grid},
+        multi_density_grid_bitfield{density_grid_bitfield},
+        multi_cone_angle_constant{cone_angle_constant},
+        multi_rgb_activation{rgb_activation},
+        multi_density_activation{density_activation},
+        multi_light_dir{light_dir},
+		multi_default_envmap_path{default_envmap_path},
+		multi_region_growing(density_grid, density_grid_bitfield, max_cascade),
+		multi_MM_operations{new CorrectMMOperations()},
+		multi_max_cascade{max_cascade} {
 
 	// For each face:
 	for (int f = 0; f < 6; f++) {
 		// Create a OpenGL texture identifier
-		glGenTextures(1, &m_debug_cubemap_textures[f]);
-		glGenTextures(1, &m_poisson_editing.sh_cubemap_textures[f]);
+		glGenTextures(1, &multi_debug_cubemap_textures[f]);
+		glGenTextures(1, &multi_poisson_editing.sh_cubemap_textures[f]);
 	}
 	// For the envmap:
-	glGenTextures(1, &m_debug_envmap_texture);
+	glGenTextures(1, &multi_debug_envmap_texture);
 
 	// Initialize mm_operator
-	// std::cout << (bool)m_MM_operations << std::endl;
+	// std::cout << (bool)multi_MM_operations << std::endl;
 }
 
-GrowingSelection::GrowingSelection(
+GrowingSelectionMulti::GrowingSelectionMulti(
 	nlohmann::json operator_json,
 	BoundingBox aabb,
 	cudaStream_t stream, 
@@ -91,99 +91,98 @@ GrowingSelection::GrowingSelection(
 	const Eigen::Vector3f light_dir,
 	const std::string default_envmap_path,
 	const uint32_t max_cascade
-) : GrowingSelection(aabb, stream, nerf_network, density_grid, density_grid_bitfield, cone_angle_constant, rgb_activation, density_activation, light_dir, default_envmap_path, max_cascade) {
+) : GrowingSelectionMulti(aabb, stream, nerf_network, density_grid, density_grid_bitfield, cone_angle_constant, rgb_activation, density_activation, light_dir, default_envmap_path, max_cascade) {
 
-	from_json(operator_json["projected_pixels"], m_projected_pixels);
-	from_json(operator_json["projected_labels"], m_projected_labels);
-	from_json(operator_json["projected_cell_idx"], m_projected_cell_idx);
-	// from_json(operator_json["projected_features"], m_projected_features);
+	from_json(operator_json["projected_pixels"], multi_projected_pixels);
+	from_json(operator_json["projected_labels"], multi_projected_labels);
+	from_json(operator_json["projected_cell_idx"], multi_projected_cell_idx);
+	// from_json(operator_json["projected_features"], multi_projected_features);
 
-	from_json(operator_json["selection_points"], m_selection_points);
-	from_json(operator_json["selection_labels"], m_selection_labels);
-	from_json(operator_json["selection_cell_idx"], m_selection_cell_idx);
-	from_json(operator_json["m_selection_grid_bitfield"], m_selection_grid_bitfield);
+	from_json(operator_json["selection_points"], multi_selection_points);
+	from_json(operator_json["selection_labels"], multi_selection_labels);
+	from_json(operator_json["selection_cell_idx"], multi_selection_cell_idx);
+	from_json(operator_json["multi_selection_grid_bitfield"], multi_selection_grid_bitfield);
 
-	m_growing_level = operator_json["growing_level"];
-	m_region_growing.load_json(operator_json["region_growing"]);
+	multi_growing_level = operator_json["growing_level"];
+	multi_region_growing.load_json(operator_json["region_growing"]);
 
 	from_json(operator_json["selection_mesh"], selection_mesh);
 	from_json(operator_json["proxy_cage"], proxy_cage);
 
 	if (operator_json.contains("interpolation_mesh")) {
 		tet_interpolation_mesh = std::make_shared<TetMesh<float_t, point_t>>(operator_json["interpolation_mesh"]);
-		tet_interpolation_mesh->build_tet_grid(m_stream);
+		tet_interpolation_mesh->build_tet_grid(multi_stream);
 	}
 	
 }
 
-bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_length,  const Matrix<float, 3, 4>& camera_matrix, const Vector2f& screen_center, bool& auto_clean) {
+bool GrowingSelectionMulti::multi_imgui(const Vector2i& resolution, const Vector2f& focal_length,  const Matrix<float, 3, 4>& camera_matrix, const Vector2f& screen_center, bool& auto_clean) {
     bool grid_edit = false;
 
 	if (ImGui::Button("PROJECT")) {
-		project_selection_pixels(m_selected_pixels, resolution, focal_length, camera_matrix, screen_center, m_stream);
-		if (m_projected_cell_idx.size() > 0)
+		if (multi_projected_cell_idx.size() > 0)
 			render_mode = ESelectionRenderMode::Projection;
 	}
-	bool growing_allowed = m_projected_cell_idx.size() > 0 || m_selection_points.size() > 0;
+	bool growing_allowed = multi_projected_cell_idx.size() > 0 || multi_selection_points.size() > 0;
 	if (growing_allowed) {
 		ImGui::SameLine(); 
 		if(ImGui::Button("GROW_REGION")) {
-			grow_region();
+			multi_grow_region();
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
 	}
 
-	bool proxy_allowed = true;// m_selection_points.size() > 0;
+	bool proxy_allowed = true;// multi_selection_points.size() > 0;
 	if (proxy_allowed) {
-		if (m_refine_cage) {
-			if (m_selection_grid_bitfield.size() > 0)
+		if (multi_refine_cage) {
+			if (multi_selection_grid_bitfield.size() > 0)
 			{
 				if (ImGui::Button("EXTRACT CAGE")) {
 					ImGui::Text("Please wait, extracting cage...");
-					compute_proxy_mesh();
-					fix_proxy_mesh();
+					multi_compute_proxy_mesh();
+					multi_fix_proxy_mesh();
 				}
 			}
 			if (proxy_cage.vertices.size() > 0) {
 				ImGui::SameLine();
 				if (ImGui::Button("COMPUTE PROXY")) {
 					ImGui::Text("Please wait, computing proxy...");
-					fix_proxy_mesh();
-					update_tet_mesh();
-					interpolate_poisson_boundary();
+					multi_fix_proxy_mesh();
+					multi_update_tet_mesh();
+					multi_interpolate_poisson_boundary();
 				}
 			}
 		} else {
-			if (m_selection_grid_bitfield.size() > 0)
+			if (multi_selection_grid_bitfield.size() > 0)
 			{
 				ImGui::SameLine();
 				// Will extract and clean the proxy directly, then compute the tet mesh and extract it as well
 				if (ImGui::Button("C0MPUTE PR0XY")) {
 					ImGui::Text("Please wait, computing proxy...");
-					fix_proxy_mesh();
-					update_tet_mesh();
-					interpolate_poisson_boundary();
+					multi_fix_proxy_mesh();
+					multi_update_tet_mesh();
+					multi_interpolate_poisson_boundary();
 				}
 			}
 		}
 	}
 
-	bool clear_selection_allowed = m_selected_pixels.size() > 0 || m_selection_cell_idx.size() > 0 || proxy_cage.vertices.size() > 0;
+	bool clear_selection_allowed = multi_selected_pixels.size() > 0 || multi_selection_cell_idx.size() > 0 || proxy_cage.vertices.size() > 0;
 	if (clear_selection_allowed && imgui_colored_button2("Clear selection", 0.f)) {
-		clear();
+		multi_clear();
 	}
-	bool reset_growing_allowed = m_selection_cell_idx.size() > 0;
+	bool reset_growing_allowed = multi_selection_cell_idx.size() > 0;
 	if (reset_growing_allowed) {
 		ImGui::SameLine();
 		if (imgui_colored_button2("Reset growing", 0.1f)) {
-			reset_growing();
+			multi_reset_growing();
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
 	}
 
 	if (tet_interpolation_mesh) {
 		if (imgui_colored_button2("Vanish!", 0.4f)) {
-			tet_interpolation_mesh->vanish(m_density_grid.data(), m_density_grid_bitfield.data(), m_stream);
+			tet_interpolation_mesh->vanish(multi_density_grid.data(), multi_density_grid_bitfield.data(), multi_stream);
 			//for (auto& v : proxy_cage.vertices) {
 			//	// Then, translate
 			//	v.y() -= 1000;
@@ -194,41 +193,41 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 		}
 
 		// Guizmo control
-		ImGui::Checkbox("Copy", &m_copy);
+		ImGui::Checkbox("Copy", &multi_copy);
 
-		ImGui::Combo("Target", (int*)&m_target, targetStrings);
+		ImGui::Combo("Target", (int*)&multi_target, targetStrings);
 
-		if (ImGui::RadioButton("Translate", m_gizmo_op == ImGuizmo::TRANSLATE))
-			m_gizmo_op = ImGuizmo::TRANSLATE;
+		if (ImGui::RadioButton("Translate", multi_gizmo_op == ImGuizmo::TRANSLATE))
+			multi_gizmo_op = ImGuizmo::TRANSLATE;
 		ImGui::SameLine();
-		if (ImGui::RadioButton("Rotate", m_gizmo_op == ImGuizmo::ROTATE))
-			m_gizmo_op = ImGuizmo::ROTATE;
+		if (ImGui::RadioButton("Rotate", multi_gizmo_op == ImGuizmo::ROTATE))
+			multi_gizmo_op = ImGuizmo::ROTATE;
 		ImGui::SameLine();
-		if (ImGui::RadioButton("Scale", m_gizmo_op == ImGuizmo::SCALE))
-			m_gizmo_op = ImGuizmo::SCALE;
+		if (ImGui::RadioButton("Scale", multi_gizmo_op == ImGuizmo::SCALE))
+			multi_gizmo_op = ImGuizmo::SCALE;
 		//ImGui::SameLine();
-		//if (ImGui::RadioButton("Local", m_gizmo_mode == ImGuizmo::LOCAL))
-		//    m_gizmo_mode = ImGuizmo::LOCAL;
+		//if (ImGui::RadioButton("Local", multi_gizmo_mode == ImGuizmo::LOCAL))
+		//    multi_gizmo_mode = ImGuizmo::LOCAL;
 		//ImGui::SameLine();
-		//if (ImGui::RadioButton("World", m_gizmo_mode == ImGuizmo::WORLD))
-		//    m_gizmo_mode = ImGuizmo::WORLD;
+		//if (ImGui::RadioButton("World", multi_gizmo_mode == ImGuizmo::WORLD))
+		//    multi_gizmo_mode = ImGuizmo::WORLD;
 
 	}
 
 	ImGui::Separator();
 
 	if (render_mode == ESelectionRenderMode::ScreenSelection) {
-		const char* elem_name = ProjectionThresholdsStr[m_projection_threshold_simple];
-		if (ImGui::SliderInt("Projection Threshold", &m_projection_threshold_simple, 0, 2, elem_name)) {
-			transmittance_threshold = ProjectionThresholdsVal[m_projection_threshold_simple];
+		const char* elem_name = ProjectionThresholdsStr[multi_projection_threshold_simple];
+		if (ImGui::SliderInt("Projection Threshold", &multi_projection_threshold_simple, 0, 2, elem_name)) {
+			transmittance_threshold = ProjectionThresholdsVal[multi_projection_threshold_simple];
 		}
 	}
 
 	if (proxy_allowed) {
 		if (render_mode == ESelectionRenderMode::RegionGrowing || render_mode == ESelectionRenderMode::Projection)
-			ImGui::SliderInt("Growing steps", &m_growing_steps, 0, 100000, "%d", ImGuiSliderFlags_Logarithmic);
+			ImGui::SliderInt("Growing steps", &multi_growing_steps, 0, 100000, "%d", ImGuiSliderFlags_Logarithmic);
 		ImGui::SliderInt("Cage size", &proxy_size, 0, 10000, "%d", ImGuiSliderFlags_Logarithmic);
-		ImGui::Checkbox("Cage refinement", &m_refine_cage);
+		ImGui::Checkbox("Cage refinement", &multi_refine_cage);
 	}
 
 	ImGui::SetNextItemOpen(false, ImGuiCond_Once);
@@ -237,13 +236,13 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 		ImGui::SetNextItemOpen(false, ImGuiCond_Once);
 		if (ImGui::TreeNode("Selection")) {
 			if(ImGui::Button("Clear selection")) {
-				clear();
+				multi_clear();
 			}
-			ImGui::Combo("Selection Mode", (int*)&(m_selection_mode), SelectionModeStr);
-			ImGui::Checkbox("Automatic max level", &m_automatic_max_level);
-			ImGui::Checkbox("Visualize max level cube", &m_visualize_max_level_cube);
-			if (!m_automatic_max_level) {
-				ImGui::SliderInt("Growing levels", &m_growing_level, 0, NERF_CASCADES() - 1);
+			ImGui::Combo("Selection Mode", (int*)&(multi_selection_mode), SelectionModeStr);
+			ImGui::Checkbox("Automatic max level", &multi_automatic_max_level);
+			ImGui::Checkbox("Visualize max level cube", &multi_visualize_max_level_cube);
+			if (!multi_automatic_max_level) {
+				ImGui::SliderInt("Growing levels", &multi_growing_level, 0, NERF_CASCADES() - 1);
 			}
 			ImGui::TreePop();
 		}
@@ -252,7 +251,6 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 		if (ImGui::TreeNode("Projection")) {
 			ImGui::SliderFloat("Transmittance threshold", &transmittance_threshold, 0.0f, 1.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
 			if (ImGui::Button("Project selection")) {
-				project_selection_pixels(m_selected_pixels, resolution, focal_length, camera_matrix, screen_center, m_stream);
 				render_mode = ESelectionRenderMode::Projection;
 			}
 			ImGui::TreePop();
@@ -260,20 +258,20 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 
 		ImGui::SetNextItemOpen(false, ImGuiCond_Once);
 		if (ImGui::TreeNode("Region growing")) {
-			ImGui::SliderFloat("Density threshold", &m_density_threshold, 0.0f, 1.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
-			ImGui::SliderInt("Growing steps", &m_growing_steps, 0, 100000, "%d", ImGuiSliderFlags_Logarithmic);
+			ImGui::SliderFloat("Density threshold", &multi_density_threshold, 0.0f, 1.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
+			ImGui::SliderInt("Growing steps", &multi_growing_steps, 0, 100000, "%d", ImGuiSliderFlags_Logarithmic);
 			if (ImGui::Button("Reset growing")) {
-				reset_growing();
+				multi_reset_growing();
 				render_mode = ESelectionRenderMode::RegionGrowing;
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Grow region")) {
-				grow_region();
+				multi_grow_region();
 				render_mode = ESelectionRenderMode::RegionGrowing;
 			}
-			ImGui::Combo("Growing Mode", (int*)&(m_region_growing_mode), RegionGrowingModeStr);
+			ImGui::Combo("Growing Mode", (int*)&(multi_region_growing_mode), RegionGrowingModeStr);
 			if (ImGui::Button("Upscale")) {
-				upscale_growing();
+				multi_upscale_growing();
 			}
 			ImGui::TreePop();
 		}
@@ -281,70 +279,70 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 		ImGui::SetNextItemOpen(false, ImGuiCond_Once);
 		if (ImGui::TreeNode("Morphological operations")) {
 			if (ImGui::Button("Dilate")) {
-				dilate();
+				multi_dilate();
 				render_mode = ESelectionRenderMode::RegionGrowing;
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Erode")) {
-				erode();
+				multi_erode();
 				render_mode = ESelectionRenderMode::RegionGrowing;
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Dilate & Erode")) {
-				dilate();
-				erode();
-				m_performed_closing = true;
+				multi_dilate();
+				multi_erode();
+				multi_performed_closing = true;
 				render_mode = ESelectionRenderMode::RegionGrowing;
 			}
-			m_MM_operations->imgui(resolution, focal_length, camera_matrix, screen_center);
+			multi_MM_operations->imgui(resolution, focal_length, camera_matrix, screen_center);
 			ImGui::TreePop();
 		}
 		
 		//ImGui::SliderFloat("Off surface projection", &off_surface_projection, 1e-4, 1.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
 		ImGui::SetNextItemOpen(false, ImGuiCond_Once);
 		if (ImGui::TreeNode("Proxy Generation")) {
-			ImGui::Checkbox("Use Morphological Ops", &m_use_morphological);
+			ImGui::Checkbox("Use Morphological Ops", &multi_use_morphological);
 			if (ImGui::Button("Extract initial mesh")) {
-				extract_fine_mesh();
+				multi_extract_fine_mesh();
 				render_mode = ESelectionRenderMode::SelectionMesh;
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Fix initial mesh")) {
-				fix_fine_mesh();
+				multi_fix_fine_mesh();
 			}
 			ImGui::SliderInt("Proxy target size", &proxy_size, 0, 10000, "%d", ImGuiSliderFlags_Logarithmic);
-			ImGui::Combo("DecimationAlgorithm", (int*)&m_decimation_algorithm, DecimationAlgorithmStr);
-			if (m_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsQuadratic || m_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsLinear) {
-				ImGui::SliderFloat("QEM contribution", &m_progressive_hulls_params.w, 0.0, 1.0, "%.4f", ImGuiSliderFlags_Logarithmic);	
-				ImGui::Checkbox("Compactness", &m_progressive_hulls_params.compactness_test);
+			ImGui::Combo("DecimationAlgorithm", (int*)&multi_decimation_algorithm, DecimationAlgorithmStr);
+			if (multi_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsQuadratic || multi_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsLinear) {
+				ImGui::SliderFloat("QEM contribution", &multi_progressive_hulls_params.w, 0.0, 1.0, "%.4f", ImGuiSliderFlags_Logarithmic);	
+				ImGui::Checkbox("Compactness", &multi_progressive_hulls_params.compactness_test);
 				ImGui::SameLine();
-				ImGui::Checkbox("Normal (NO)", &m_progressive_hulls_params.normal_test);
+				ImGui::Checkbox("Normal (NO)", &multi_progressive_hulls_params.normal_test);
 				ImGui::SameLine();
-				ImGui::Checkbox("Valence", &m_progressive_hulls_params.valence_test);
-				if (m_progressive_hulls_params.compactness_test) {
-					ImGui::SliderFloat("Compactness Threshold", &m_progressive_hulls_params.compactness_threshold, 0.0, 1.0);	
+				ImGui::Checkbox("Valence", &multi_progressive_hulls_params.valence_test);
+				if (multi_progressive_hulls_params.compactness_test) {
+					ImGui::SliderFloat("Compactness Threshold", &multi_progressive_hulls_params.compactness_threshold, 0.0, 1.0);	
 				}
-				if (m_progressive_hulls_params.normal_test) {
-					ImGui::SliderFloat("Normal Threshold", &m_progressive_hulls_params.normal_threshold, 0.0, M_PI/2);	
+				if (multi_progressive_hulls_params.normal_test) {
+					ImGui::SliderFloat("Normal Threshold", &multi_progressive_hulls_params.normal_threshold, 0.0, M_PI/2);	
 				}
-				if (m_progressive_hulls_params.valence_test) {
-					ImGui::SliderInt("Max valence", &m_progressive_hulls_params.max_valence, 6, 20);	
+				if (multi_progressive_hulls_params.valence_test) {
+					ImGui::SliderInt("Max valence", &multi_progressive_hulls_params.max_valence, 6, 20);	
 				}
-				ImGui::Checkbox("Presimplify", &m_progressive_hulls_params.presimplify);
-				if (m_progressive_hulls_params.presimplify) {
-					ImGui::SliderFloat("Presimplification Ratio", &m_progressive_hulls_params.presimplification_ratio, 0, 1, "%.4f", ImGuiSliderFlags_Logarithmic);
+				ImGui::Checkbox("Presimplify", &multi_progressive_hulls_params.presimplify);
+				if (multi_progressive_hulls_params.presimplify) {
+					ImGui::SliderFloat("Presimplification Ratio", &multi_progressive_hulls_params.presimplification_ratio, 0, 1, "%.4f", ImGuiSliderFlags_Logarithmic);
 				}
 			}
 			if (ImGui::Button("Compute proxy")) {
-				compute_proxy_mesh();
+				multi_compute_proxy_mesh();
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Fix proxy")) {
-				fix_proxy_mesh();
+				multi_fix_proxy_mesh();
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Export Proxy Mesh")) {
-				export_proxy_mesh();
+				multi_export_proxy_mesh();
 			}
 			ImGui::TreePop();
 		}
@@ -354,59 +352,59 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			ImGui::Checkbox("Preserve surface mesh", &preserve_surface_mesh);
 			ImGui::SameLine();
 			ImGui::Checkbox("Display inside", &display_in_tet);
-			ImGui::Checkbox("Auto update", &m_update_tet_manipulation);
+			ImGui::Checkbox("Auto update", &multi_update_tet_manipulation);
 			ImGui::SliderFloat("Ideal tet length", &ideal_tet_edge_length, 0.0f, 1.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
 			if (ImGui::Button("Force Cage")) {
-				force_cage();
+				multi_force_cage();
 			}
 			if (ImGui::Button("Extract tet")) {
-				extract_tet_mesh();
-				initialize_mvc();
+				multi_extract_tet_mesh();
+				multi_initialize_mvc();
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Update TetMesh")) {
-				update_tet_mesh();
+				multi_update_tet_mesh();
 				grid_edit = true;
 			}
 			if (tet_interpolation_mesh) {
 				ImGui::Text("Max tet lookup: %d", tet_interpolation_mesh->max_tet_lookup);
 			}
-			if (ImGui::Checkbox("Correct direction", &m_correct_direction)) {
-				if (!m_correct_direction && tet_interpolation_mesh) {
+			if (ImGui::Checkbox("Correct direction", &multi_correct_direction)) {
+				if (!multi_correct_direction && tet_interpolation_mesh) {
 					tet_interpolation_mesh->local_rotations_gpu.resize(0);
 				}
-				update_tet_mesh();
+				multi_update_tet_mesh();
 			}
 			ImGui::TreePop();
 		}
 
 		ImGui::SetNextItemOpen(false, ImGuiCond_Once);
 		if (ImGui::TreeNode("Poisson editing")) {
-			ImGui::SliderFloat("Plane Radius", &m_plane_radius, 0.1f, 1.0f);
-			ImGui::SliderFloat("Plane Offset", &m_plane_offset, -1.0f, 1.0f);
-			if(ImGui::SliderFloat("MVC gamma", &m_poisson_editing.mvc_gamma, 1.f, 2.f)) {
+			ImGui::SliderFloat("Plane Radius", &multi_plane_radius, 0.1f, 1.0f);
+			ImGui::SliderFloat("Plane Offset", &multi_plane_offset, -1.0f, 1.0f);
+			if(ImGui::SliderFloat("MVC gamma", &multi_poisson_editing.mvc_gamma, 1.f, 2.f)) {
 				if (!tet_interpolation_mesh && tet_interpolation_mesh->vertices.size() > 0) {
-					// std::cout << "Updating MVC to gamma = " << m_poisson_editing.mvc_gamma << std::endl;
-					proxy_cage.compute_mvc(tet_interpolation_mesh->original_vertices, tet_interpolation_mesh->gamma_coordinates, tet_interpolation_mesh->labels, true, m_poisson_editing.mvc_gamma);
-					interpolate_poisson_boundary();
+					// std::cout << "Updating MVC to gamma = " << multi_poisson_editing.mvc_gamma << std::endl;
+					proxy_cage.compute_mvc(tet_interpolation_mesh->original_vertices, tet_interpolation_mesh->gamma_coordinates, tet_interpolation_mesh->labels, true, multi_poisson_editing.mvc_gamma);
+					multi_interpolate_poisson_boundary();
 				}
 			}
-			ImGui::SliderInt("SH sampling width", &m_poisson_editing.sh_sampling_width, 1, 20);
-			if (ImGui::SliderFloat("weights threshold", &m_poisson_editing.sh_sum_weights_threshold, 1e-6f, 1e-2f, "%.6f", ImGuiSliderFlags_Logarithmic)) {
-				interpolate_poisson_boundary();
+			ImGui::SliderInt("SH sampling width", &multi_poisson_editing.sh_sampling_width, 1, 20);
+			if (ImGui::SliderFloat("weights threshold", &multi_poisson_editing.sh_sum_weights_threshold, 1e-6f, 1e-2f, "%.6f", ImGuiSliderFlags_Logarithmic)) {
+				multi_interpolate_poisson_boundary();
 			}
-			if (ImGui::SliderFloat("inside contribution", &m_poisson_editing.inside_contribution, 0.f, 1.f)) {
-				interpolate_poisson_boundary();
+			if (ImGui::SliderFloat("inside contribution", &multi_poisson_editing.inside_contribution, 0.f, 1.f)) {
+				multi_interpolate_poisson_boundary();
 			}
 			// if (ImGui::Button("Compute boundary values")) {
 			// 	compute_poisson_boundary();
 			// }
 			ImGui::SameLine();
 			if (ImGui::Button("Compute cubemap")) {
-				generate_poisson_cube_map();
+				multi_generate_poisson_cube_map();
 			}
 			if (ImGui::Button("Update MVC")) {
-				interpolate_poisson_boundary();
+				multi_interpolate_poisson_boundary();
 			}
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 			for (int i = 0; i < 6; i++)
@@ -415,7 +413,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 				if (i < 1 || i >3 ) {
 					ImGui::Indent(4*DEBUG_CUBEMAP_WIDTH);
 				}  
-				ImGui::Image((void*)(intptr_t)m_poisson_editing.sh_cubemap_textures[i], ImVec2(4*DEBUG_CUBEMAP_WIDTH, 4*DEBUG_CUBEMAP_WIDTH));
+				ImGui::Image((void*)(intptr_t)multi_poisson_editing.sh_cubemap_textures[i], ImVec2(4*DEBUG_CUBEMAP_WIDTH, 4*DEBUG_CUBEMAP_WIDTH));
 				if (i < 1 || i >3 ) {
 					ImGui::Unindent(4*DEBUG_CUBEMAP_WIDTH);
 				}  
@@ -438,19 +436,19 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
     // } else if (render_mode == ESelectionRenderMode::ProxyMesh) {
     //     ImGui::Combo("Cage Render Mode", (int*)&proxy_cage.render_mode, CageRenderModeStr);
     // } else if (render_mode == ESelectionRenderMode::RegionGrowing) {
-    //     ImGui::Combo("PcRenderMode", (int*)&m_pc_render_mode, PcRenderModeStr);
-	// 	ImGui::SliderInt("Max level", &m_pc_render_max_level, 0, NERF_CASCADES());
+    //     ImGui::Combo("PcRenderMode", (int*)&multi_pc_render_mode, PcRenderModeStr);
+	// 	ImGui::SliderInt("Max level", &multi_pc_render_max_level, 0, NERF_CASCADES());
     // }
     ImGui::Separator();
 
-    // ImGui::LabelText(std::to_string(m_selected_pixels.size()).c_str(), "Nb selected pixels");
+    // ImGui::LabelText(std::to_string(multi_selected_pixels.size()).c_str(), "Nb selected pixels");
     
     // ImGui::Separator();
 
-	//ImGui::Checkbox("Rigid Editing", &m_rigid_editing);
+	//ImGui::Checkbox("Rigid Editing", &multi_rigid_editing);
 	//ImGui::SameLine();
 	
-	//ImGui::Checkbox("Bypass verts", &m_bypass);
+	//ImGui::Checkbox("Bypass verts", &multi_bypass);
 	//ImGui::Separator();
 
 	return grid_edit;
@@ -458,7 +456,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 
 //Edit GUI
 // The function returns a boolean value indicating whether the gizmo was edited or not.
-bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view2proj, const Eigen::Matrix<float, 4, 4> &world2proj, const Eigen::Matrix<float, 4, 4> &world2view, const Eigen::Vector2f& focal, float aspect, float time) {
+bool GrowingSelectionMulti::multi_visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view2proj, const Eigen::Matrix<float, 4, 4> &world2proj, const Eigen::Matrix<float, 4, 4> &world2view, const Eigen::Vector2f& focal, float aspect, float time) {
 	
 //Record the current time to measure performance.
 	auto before = std::chrono::system_clock::now();
@@ -484,18 +482,18 @@ such as the focal length, aspect ratio, and view-to-projection matrix.*/
 //Set the ImGuizmo rectangle to cover the entire display area.
     ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 
-	//Questa porzione di codice non viene attivata, non ho trovato nessun punto in cui viene modificato m_rigid_editing
-	if (m_rigid_editing && cage_edition.selected_vertices.size() == 0)
+	//Questa porzione di codice non viene attivata, non ho trovato nessun punto in cui viene modificato multi_rigid_editing
+	if (multi_rigid_editing && cage_edition.selected_vertices.size() == 0)
 	{
 		for (int i = 0; i < proxy_cage.vertices.size(); i++) cage_edition.selected_vertices.push_back(i);
 	//Initialize the vertex selection
 		cage_edition.selection_barycenter = point_t::Zero();
-		if (!m_plane_dir.isZero())
+		if (!multi_plane_dir.isZero())
 		{
 			matrix3_t rot;
-			rot.col(0) = m_plane_dir1;
-			rot.col(1) = m_plane_dir;
-			rot.col(2) = m_plane_dir2;
+			rot.col(0) = multi_plane_dir1;
+			rot.col(1) = multi_plane_dir;
+			rot.col(2) = multi_plane_dir2;
 			cage_edition.selection_rotation = rot;
 		}
 		else
@@ -513,13 +511,13 @@ such as the focal length, aspect ratio, and view-to-projection matrix.*/
 		}
 		cage_edition.selection_barycenter /= cage_edition.selected_vertices.size();
 
-		std::cout << "cage_edition.selection_barycenter m_rigid_editing: " << cage_edition.selection_barycenter << std::endl;
+		std::cout << "cage_edition.selection_barycenter multi_rigid_editing: " << cage_edition.selection_barycenter << std::endl;
 
 /*
-		for (const auto selected_point : m_selection_points) {
+		for (const auto selected_point : multi_selection_points) {
 			cage_edition.selection_barycenter += selected_point;
 		}
-		cage_edition.selection_barycenter /= m_selection_points.size();
+		cage_edition.selection_barycenter /= multi_selection_points.size();
 
 		std::cout << "cage_edition.selection_barycenter: " << cage_edition.selection_barycenter << std::endl;
 */
@@ -530,26 +528,26 @@ such as the focal length, aspect ratio, and view-to-projection matrix.*/
 	//point_t guizmo_scale = point_t(1.0f, 1.0f, 1.0f);
 	compose_imguizmo_matrix<matrix3_t, point_t, float_t>(edit_matrix, cage_edition.selection_rotation, cage_edition.selection_barycenter, cage_edition.selection_scaling);
 	
-	//MODIFICARE le condizioni dell'if per avviare le modifiche direttamente sugli m_selection_points e non sui vertici della cage
+	//MODIFICARE le condizioni dell'if per avviare le modifiche direttamente sugli multi_selection_points e non sui vertici della cage
 /* Check if there are selected vertices and the render mode is one of ProxyMesh, TetMesh, or Off. 
 If so, use ImGuizmo's Manipulate function to update the edit_matrix based on user input.*/
 	//Necessario imporre un limite di edits, siccome senza il check sulla condizione ImGuizmo::Manipulate, 
 	//l'edit verrebbe svolto infinite volte (questo codice viene avviato in loop)
 
-	if(num_of_iterations < max_number_of_iterations){			//definito in growing_selection.h				 
+	if(multi_num_of_iterations < multi_max_number_of_iterations){			//definito in growing_selection.h				 
 		if (cage_edition.selected_vertices.size() > 0 
 		&& (render_mode == ESelectionRenderMode::ProxyMesh 
 		|| render_mode == ESelectionRenderMode::TetMesh 
 		|| render_mode == ESelectionRenderMode::Off) 
 	/*	&&  ImGuizmo::Manipulate((const float*)&world2view, 
 		(const float*)&view2proj_guizmo, 
-		(ImGuizmo::OPERATION)m_gizmo_op, 
-		(ImGuizmo::MODE)m_gizmo_mode, 
+		(ImGuizmo::OPERATION)multi_gizmo_op, 
+		(ImGuizmo::MODE)multi_gizmo_mode, 
 		(float*)&edit_matrix, NULL, NULL)*/
 		) {
 			edited_guizmo = true;
 			//std::cout << "number_of_edits: " << num_of_iterations << std::endl;
-			num_of_iterations++;
+			multi_num_of_iterations++;
 			matrix3_t guizmo_rotation;
 			point_t guizmo_translation;
 			point_t guizmo_scale = point_t(1.0f, 1.0f, 1.0f);
@@ -576,13 +574,13 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 			guizmo_translation << translation + cage_edition.selection_barycenter; 		//Rende il punto iniziale Guizmo coerente con lo spostamento, per la prossima modifica
 	//		std::cout << "Final Translation vector: " << translation << std::endl;  
 
-			// std::cout << m_rotation_matrix.determinat() << std::endl;
-			// m_scale = guizmo_scale.cwiseQuotient(m_selection_box.scale);
+			// std::cout << multi_rotation_matrix.determinat() << std::endl;
+			// multi_scale = guizmo_scale.cwiseQuotient(multi_selection_box.scale);
 
-		//Apply the transformation to the selected vertices, either rigidly or non-rigidly, depending on the value of  m_rigid_editing.
-			if (m_target == EManipulationTarget::CageVerts)
+		//Apply the transformation to the selected vertices, either rigidly or non-rigidly, depending on the value of  multi_rigid_editing.
+			if (multi_target == EManipulationTarget::CageVerts)
 			{
-				if (m_rigid_editing)				//non so come attivare questa parte di codice
+				if (multi_rigid_editing)				//non so come attivare questa parte di codice
 				{
 					for (auto& selected_vertex : proxy_cage.vertices) {
 						// Rotate (w.r.t. barycenter)
@@ -620,13 +618,13 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 			cage_edition.selection_rotation = guizmo_rotation;
 			cage_edition.selection_scaling = guizmo_scale;
 
-		//If the m_update_tet_manipulation flag is enabled, update the tetrahedral mesh by interpolating the Poisson boundary and updating the mesh.
+		//If the multi_update_tet_manipulation flag is enabled, update the tetrahedral mesh by interpolating the Poisson boundary and updating the mesh.
 			// If auto update is activated, perform it
-			if (m_update_tet_manipulation) {						//senza il codice sottostante, le modifiche non si propagano ai colori e al volume interno alla proxy_cage
+			if (multi_update_tet_manipulation) {						//senza il codice sottostante, le modifiche non si propagano ai colori e al volume interno alla proxy_cage
 				// Only update if the tet mesh already exists!
 				if (tet_interpolation_mesh) {							
-					interpolate_poisson_boundary();						
-					update_tet_mesh();
+					multi_interpolate_poisson_boundary();						
+					multi_update_tet_mesh();
 				}
 			}
 			
@@ -636,30 +634,30 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
     if (render_mode == ESelectionRenderMode::ScreenSelection) {
         if (ImGui::IsKeyDown(SCREEN_SELECTION_KEY) && io.MouseDown[0]) {
 			Eigen::Vector2i selected_pixel = Eigen::Vector2i(io.MousePos.x, io.MousePos.y);
-			if (selected_pixel != m_last_selected_pixel) {
-				if (m_selection_mode == ESelectionMode::PixelWise) {
-					if (selected_pixel != m_last_selected_pixel) {
+			if (selected_pixel != multi_last_selected_pixel) {
+				if (multi_selection_mode == ESelectionMode::PixelWise) {
+					if (selected_pixel != multi_last_selected_pixel) {
 						// std::cout << "Selected new pixel: " << selected_pixel << std::endl;
-						m_selected_pixels_imgui.push_back(ImVec2(io.MousePos.x, io.MousePos.y));
-						m_selected_pixels.push_back(selected_pixel);
-						m_last_selected_pixel = selected_pixel;
+						multi_selected_pixels_imgui.push_back(ImVec2(io.MousePos.x, io.MousePos.y));
+						multi_selected_pixels.push_back(selected_pixel);
+						multi_last_selected_pixel = selected_pixel;
 					}
-				} else if (m_selection_mode == ESelectionMode::Scribble) {
+				} else if (multi_selection_mode == ESelectionMode::Scribble) {
 					// If there is a last selected pixel, connect both (with naive line drawing algorithm)
-					if (m_last_selected_pixel.x() >= 0 && m_last_selected_pixel.y() >= 0) {
-						Eigen::Vector2i min_pos = m_last_selected_pixel.cwiseMin(selected_pixel);
-						Eigen::Vector2i max_pos = m_last_selected_pixel.cwiseMax(selected_pixel);
+					if (multi_last_selected_pixel.x() >= 0 && multi_last_selected_pixel.y() >= 0) {
+						Eigen::Vector2i min_pos = multi_last_selected_pixel.cwiseMin(selected_pixel);
+						Eigen::Vector2i max_pos = multi_last_selected_pixel.cwiseMax(selected_pixel);
 						Eigen::Vector2i diff = max_pos - min_pos;
 						for (int x = min_pos.x() + 1; x < max_pos.x(); x++) {
 							Eigen::Vector2i new_pixel (x, min_pos.y() + diff.y() * (x - min_pos.x()) / diff.x());
-							m_selected_pixels_imgui.push_back(ImVec2(new_pixel.x(), new_pixel.y()));
-							m_selected_pixels.push_back(new_pixel);
+							multi_selected_pixels_imgui.push_back(ImVec2(new_pixel.x(), new_pixel.y()));
+							multi_selected_pixels.push_back(new_pixel);
 						}
 					}
 					// In any case add the new pixel if not similar to the previous one
-					m_selected_pixels_imgui.push_back(ImVec2(io.MousePos.x, io.MousePos.y));
-					m_selected_pixels.push_back(selected_pixel);
-					m_last_selected_pixel = selected_pixel;
+					multi_selected_pixels_imgui.push_back(ImVec2(io.MousePos.x, io.MousePos.y));
+					multi_selected_pixels.push_back(selected_pixel);
+					multi_last_selected_pixel = selected_pixel;
 				}
 			}
 			          
@@ -667,10 +665,10 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 		
 		// Make sure to reset the last selected pixel if the user release the key
 		if (ImGui::IsKeyReleased(SCREEN_SELECTION_KEY)) {
-			m_last_selected_pixel = Eigen::Vector2i(-1, -1);
+			multi_last_selected_pixel = Eigen::Vector2i(-1, -1);
 		}
 
-        for (auto& selected_pixel: m_selected_pixels_imgui) {
+        for (auto& selected_pixel: multi_selected_pixels_imgui) {
             list->AddCircleFilled(ImVec2(selected_pixel.x, selected_pixel.y), 4.0f, IM_COL32(255, 0, 0, 255));
         }
     }
@@ -679,9 +677,9 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 	// Handle projection deletion
 	if (ImGui::IsKeyDown(ImGuiKey_Delete)) {
 		if (render_mode == ESelectionRenderMode::Projection) {
-			delete_selected_projection();
+			multi_delete_selected_projection();
 		} else if (render_mode == ESelectionRenderMode::RegionGrowing) {
-			delete_selected_growing();
+			multi_delete_selected_growing();
 		}
 	}
 
@@ -690,11 +688,11 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 	if(ImGui::IsKeyPressed(ImGuiKey_LeftCtrl))
 	{
 		if (io.MouseWheel > 0)
-			m_select_radius *= 1.5f;
+			multi_select_radius *= 1.5f;
 		if (io.MouseWheel < 0)
-			m_select_radius /= 1.5f;
-		select_scribbling(world2proj);
-		list->AddCircle(io.MousePos, m_select_radius+0.5f, IM_COL32(0, 255, 255, 255));
+			multi_select_radius /= 1.5f;
+		multi_select_scribbling(world2proj);
+		list->AddCircle(io.MousePos, multi_select_radius+0.5f, IM_COL32(0, 255, 255, 255));
 	}
 
     // ----------------------
@@ -712,52 +710,52 @@ If so, use ImGuizmo's Manipulate function to update the edit_matrix based on use
 		currently_selecting_cage = false;
 		selected_cage = true;
 		list->AddRect(mouse_clicked_selecting_cage, mouse_released_selecting_cage, 0xff40ff40, ImDrawFlags_Closed);
-		select_cage_rect(world2proj);
+		multi_select_cage_rect(world2proj);
 	}
 	if (ImGui::IsKeyPressed(ImGuiKey_LeftAlt)) {
-		reset_cage_selection();
+		multi_reset_cage_selection();
 	}
 
-	if (m_visualize_max_level_cube) {
-		visualize_level_cube(world2proj, m_growing_level);
+	if (multi_visualize_max_level_cube) {
+		visualize_level_cube(world2proj, multi_growing_level);
 	}
 
-	if (!m_plane_dir.isZero())
+	if (!multi_plane_dir.isZero())
 	{
 		auto dim = tet_interpolation_mesh->original_bbox.max - tet_interpolation_mesh->original_bbox.min;
 
-		visualize_quad(world2proj, m_plane_pos, m_plane_dir1.normalized() * dim.x() * 0.5f, m_plane_dir2.normalized() * dim.y() * 0.5f);
+		visualize_quad(world2proj, multi_plane_pos, multi_plane_dir1.normalized() * dim.x() * 0.5f, multi_plane_dir2.normalized() * dim.y() * 0.5f);
 	}
 
 	return edited_guizmo;
 }
 
-void GrowingSelection::color_selection() {
+void GrowingSelectionMulti::multi_color_selection() {
 	if (proxy_cage.outside_colors.size() != proxy_cage.vertices.size()) {
 		proxy_cage.outside_colors.resize(proxy_cage.vertices.size());
 	}
 
 	for (const auto selected_vertex: cage_edition.selected_vertices) {
 		// Rotate (w.r.t. barycenter)
-		proxy_cage.outside_colors[selected_vertex] = Eigen::Vector3f{m_brush_color[0], m_brush_color[1], m_brush_color[2]};
-		proxy_cage.colors[selected_vertex] = Eigen::Vector3f{m_brush_color[0], m_brush_color[1], m_brush_color[2]};
+		proxy_cage.outside_colors[selected_vertex] = Eigen::Vector3f{multi_brush_color[0], multi_brush_color[1], multi_brush_color[2]};
+		proxy_cage.colors[selected_vertex] = Eigen::Vector3f{multi_brush_color[0], multi_brush_color[1], multi_brush_color[2]};
 	}
 }
 
-//Launched by GrowingSelection::select_scribbling  (ctrl+scroll wheel)
-inline bool GrowingSelection::is_near_mouse(const ImVec2& p)
+//Launched by GrowingSelectionMulti::multi_select_scribbling  (ctrl+scroll wheel)
+inline bool GrowingSelectionMulti::multi_is_near_mouse(const ImVec2& p)
 {
 	ImGuiIO& io = ImGui::GetIO();
 	Eigen::Vector2i selected_pixel = Eigen::Vector2i(io.MousePos.x, io.MousePos.y);
 	Eigen::Vector2i candidate_pixel = Eigen::Vector2i(p.x, p.y);
-	if ((selected_pixel - candidate_pixel).norm() < m_select_radius)
+	if ((selected_pixel - candidate_pixel).norm() < multi_select_radius)
 	{
 		return true;
 	}
 	return false;
 }
 
-inline bool GrowingSelection::is_inside_rect(const ImVec2& p) {
+inline bool GrowingSelectionMulti::multi_is_inside_rect(const ImVec2& p) {
 
 	if (p.x >= std::min(mouse_clicked_selecting_cage.x, mouse_released_selecting_cage.x) &&
 		p.x <= std::max(mouse_clicked_selecting_cage.x, mouse_released_selecting_cage.x) &&
@@ -770,23 +768,23 @@ inline bool GrowingSelection::is_inside_rect(const ImVec2& p) {
 	}
 }
 
-void GrowingSelection::reset_cage_selection() {
+void GrowingSelectionMulti::multi_reset_cage_selection() {
 	// In case of proxy mesh
     for (uint32_t i = 0; i < proxy_cage.labels.size(); i++) {
         proxy_cage.labels[i] = 0;
 		proxy_cage.colors[i] = Eigen::Vector3f(
-            m_cage_color[0],
-            m_cage_color[1],
-            m_cage_color[2]);
+            multi_cage_color[0],
+            multi_cage_color[1],
+            multi_cage_color[2]);
     }
     cage_edition.selected_vertices.clear();
 	// In case of projected pixels
-	for (int i = 0; i < m_projected_labels.size(); i++) {
-		m_projected_labels[i] = 0;
+	for (int i = 0; i < multi_projected_labels.size(); i++) {
+		multi_projected_labels[i] = 0;
 	}
 	// In case of selected points
-	for (int i = 0; i < m_selection_labels.size(); i++) {
-		m_selection_labels[i] = 0;
+	for (int i = 0; i < multi_selection_labels.size(); i++) {
+		multi_selection_labels[i] = 0;
 	}
 }
 
@@ -824,61 +822,61 @@ inline std::vector<T> erase_indices(const std::vector<T>& data, std::vector<size
 }
 
 //Launched by canc button
-void GrowingSelection::delete_selected_projection() {
+void GrowingSelectionMulti::multi_delete_selected_projection() {
 	std::vector<size_t> pixels_to_delete;
-	for (int i = 0; i < m_projected_pixels.size(); i++) {
-		if (m_projected_labels[i] == 1) {
+	for (int i = 0; i < multi_projected_pixels.size(); i++) {
+		if (multi_projected_labels[i] == 1) {
 			pixels_to_delete.push_back(i);
 		}
 	}
 	if (pixels_to_delete.size() > 0) {
-		m_projected_pixels = erase_indices<Eigen::Vector3f>(m_projected_pixels, pixels_to_delete);
-		m_projected_labels = erase_indices<uint8_t>(m_projected_labels, pixels_to_delete);
-		m_projected_cell_idx = erase_indices<uint32_t>(m_projected_cell_idx, pixels_to_delete);
-		// m_projected_features = erase_indices<FeatureVector>(m_projected_features, pixels_to_delete);
+		multi_projected_pixels = erase_indices<Eigen::Vector3f>(multi_projected_pixels, pixels_to_delete);
+		multi_projected_labels = erase_indices<uint8_t>(multi_projected_labels, pixels_to_delete);
+		multi_projected_cell_idx = erase_indices<uint32_t>(multi_projected_cell_idx, pixels_to_delete);
+		// multi_projected_features = erase_indices<FeatureVector>(multi_projected_features, pixels_to_delete);
 	}
 	// Don't forget to reset growing!
-	reset_growing();
+	multi_reset_growing();
 }
 
 //Launched by canc button
-void GrowingSelection::delete_selected_growing() {
+void GrowingSelectionMulti::multi_delete_selected_growing() {
 	std::vector<size_t> points_to_delete;
-	for (int i = 0; i < m_selection_points.size(); i++) {
-		if (m_selection_labels[i] == 1) {
+	for (int i = 0; i < multi_selection_points.size(); i++) {
+		if (multi_selection_labels[i] == 1) {
 			points_to_delete.push_back(i);
 		}
 	}
 	if (points_to_delete.size() > 0) {
 		// Update the bitfield accordingly
 		for (auto idx: points_to_delete) {
-			uint32_t level = m_selection_cell_idx[idx] / NERF_GRIDVOLUME();
-			uint32_t pos_idx = m_selection_cell_idx[idx] % NERF_GRIDVOLUME();
-			set_bitfield_at(pos_idx, level, false, m_selection_grid_bitfield.data());
+			uint32_t level = multi_selection_cell_idx[idx] / NERF_GRIDVOLUME();
+			uint32_t pos_idx = multi_selection_cell_idx[idx] % NERF_GRIDVOLUME();
+			set_bitfield_at(pos_idx, level, false, multi_selection_grid_bitfield.data());
 		}
-		m_selection_points = erase_indices<Eigen::Vector3f>(m_selection_points, points_to_delete);
-		m_selection_labels = erase_indices<uint8_t>(m_selection_labels, points_to_delete);
-		m_selection_cell_idx = erase_indices<uint32_t>(m_selection_cell_idx, points_to_delete);
+		multi_selection_points = erase_indices<Eigen::Vector3f>(multi_selection_points, points_to_delete);
+		multi_selection_labels = erase_indices<uint8_t>(multi_selection_labels, points_to_delete);
+		multi_selection_cell_idx = erase_indices<uint32_t>(multi_selection_cell_idx, points_to_delete);
 	}
 }
 
 //Launched by ctrl+scroll wheel
-void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world2proj) {
+void GrowingSelectionMulti::multi_select_scribbling(const Eigen::Matrix<float, 4, 4>& world2proj) {
 	if (render_mode == ESelectionRenderMode::Projection) {
 		// Take every projected pixel and reproject it in screen space
 		uint32_t n_selected = 0;
 		std::vector<int> pixel_to_delete;
-		for (uint32_t i = 0; i < m_projected_pixels.size(); i++) {
-			const Eigen::Vector3f& p = m_projected_pixels[i];
+		for (uint32_t i = 0; i < multi_projected_pixels.size(); i++) {
+			const Eigen::Vector3f& p = multi_projected_pixels[i];
 			Eigen::Vector4f ph; ph << p, 1.f;
 			Eigen::Vector4f pa = world2proj * ph;
 			ImVec2 o;
 			if (pa.w() <= 0.f) continue;
 			o.x = pa.x() / pa.w();
 			o.y = pa.y() / pa.w();
-			if (is_near_mouse(o)) {
+			if (multi_is_near_mouse(o)) {
 				n_selected++;
-				m_projected_labels[i] = 1;
+				multi_projected_labels[i] = 1;
 			}
 		}
 	}
@@ -886,17 +884,17 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 		// Take every selected pixel and reproject it in screen space
 		uint32_t n_selected = 0;
 		std::vector<int> pixel_to_delete;
-		for (uint32_t i = 0; i < m_selection_points.size(); i++) {
-			const Eigen::Vector3f& p = m_selection_points[i];
+		for (uint32_t i = 0; i < multi_selection_points.size(); i++) {
+			const Eigen::Vector3f& p = multi_selection_points[i];
 			Eigen::Vector4f ph; ph << p, 1.f;
 			Eigen::Vector4f pa = world2proj * ph;
 			ImVec2 o;
 			if (pa.w() <= 0.f) continue;
 			o.x = pa.x() / pa.w();
 			o.y = pa.y() / pa.w();
-			if (is_near_mouse(o)) {
+			if (multi_is_near_mouse(o)) {
 				n_selected++;
-				m_selection_labels[i] = 1;
+				multi_selection_labels[i] = 1;
 			}
 		}
 	}
@@ -911,13 +909,13 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 			if (pa.w() <= 0.f) continue;
 			o.x = pa.x() / pa.w();
 			o.y = pa.y() / pa.w();
-			if (is_near_mouse(o)) {
+			if (multi_is_near_mouse(o)) {
 				n_selected++;
 				proxy_cage.labels[i] = 1;
 				proxy_cage.colors[i] = Eigen::Vector3f(
-					m_brush_color[0],
-					m_brush_color[1],
-					m_brush_color[2]
+					multi_brush_color[0],
+					multi_brush_color[1],
+					multi_brush_color[2]
 				);
 			}
 		}
@@ -929,12 +927,12 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 			}
 		}
 		cage_edition.selection_barycenter = point_t::Zero();
-		if (!m_plane_dir.isZero())
+		if (!multi_plane_dir.isZero())
 		{
 			matrix3_t rot;
-			rot.col(0) = m_plane_dir1;
-			rot.col(1) = m_plane_dir;
-			rot.col(2) = m_plane_dir2;
+			rot.col(0) = multi_plane_dir1;
+			rot.col(1) = multi_plane_dir;
+			rot.col(2) = multi_plane_dir2;
 			cage_edition.selection_rotation = rot;
 		}
 		else
@@ -944,7 +942,7 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 		cage_edition.selection_scaling = point_t::Ones();
 		
 		//Sostituito cage_edition.selection_barycenter IN MODO CHE NON DIPENDA DA UNA CAGE
-		//Sostituito cage_edition.selected_vertices con i punti rossi std::vector<Eigen::Vector3f> m_selection_points
+		//Sostituito cage_edition.selected_vertices con i punti rossi std::vector<Eigen::Vector3f> multi_selection_points
 		//Compute the barycenter and rotation matrix of the selection
 		//std::cout << "cage_edition.selected_vertices size: " << cage_edition.selected_vertices.size() << std::endl;
 		//std::cout << "proxy_cage.vertices size: " << proxy_cage.vertices.size() << std::endl;
@@ -958,10 +956,10 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 		//std::cout << "cage_edition.selection_barycenter ORIGINAL: " << cage_edition.selection_barycenter << std::endl;
 
 
-		for (const auto selected_point : m_selection_points) {
+		for (const auto selected_point : multi_selection_points) {
 			cage_edition.selection_barycenter += selected_point;
 		}
-		cage_edition.selection_barycenter /= m_selection_points.size();
+		cage_edition.selection_barycenter /= multi_selection_points.size();
 
 		//std::cout << "cage_edition.selection_barycenter MODIFICATA: " << cage_edition.selection_barycenter << std::endl;
 
@@ -969,39 +967,39 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 }
 
 //Voxel selection with Shift+Mouse Left Click
-void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2proj) {
+void GrowingSelectionMulti::multi_select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2proj) {
 	if (render_mode == ESelectionRenderMode::Projection) {
 		// Take every projected pixel and reproject it in screen space
 		uint32_t n_selected = 0;
 		std::vector<int> pixel_to_delete;
-		for (uint32_t i = 0; i < m_projected_pixels.size(); i++) {
-			const Eigen::Vector3f& p = m_projected_pixels[i];
+		for (uint32_t i = 0; i < multi_projected_pixels.size(); i++) {
+			const Eigen::Vector3f& p = multi_projected_pixels[i];
 			Eigen::Vector4f ph; ph << p, 1.f;
 			Eigen::Vector4f pa = world2proj * ph;
 			ImVec2 o;
 			if (pa.w() <= 0.f) continue;
 			o.x = pa.x() / pa.w();
 			o.y = pa.y() / pa.w();
-			if (is_inside_rect(o)) {
+			if (multi_is_inside_rect(o)) {
 				n_selected++;
-				m_projected_labels[i] = 1;
+				multi_projected_labels[i] = 1;
 			}
 		}
 	} else if (render_mode == ESelectionRenderMode::RegionGrowing) {
 		// Take every selected pixel and reproject it in screen space
 		uint32_t n_selected = 0;
 		std::vector<int> pixel_to_delete;
-		for (uint32_t i = 0; i < m_selection_points.size(); i++) {
-			const Eigen::Vector3f& p = m_selection_points[i];
+		for (uint32_t i = 0; i < multi_selection_points.size(); i++) {
+			const Eigen::Vector3f& p = multi_selection_points[i];
 			Eigen::Vector4f ph; ph << p, 1.f;
 			Eigen::Vector4f pa = world2proj * ph;
 			ImVec2 o;
 			if (pa.w() <= 0.f) continue;
 			o.x = pa.x() / pa.w();
 			o.y = pa.y() / pa.w();
-			if (is_inside_rect(o)) {
+			if (multi_is_inside_rect(o)) {
 				n_selected++;
-				m_selection_labels[i] = 1;
+				multi_selection_labels[i] = 1;
 			}
 		}
 	} else if (render_mode == ESelectionRenderMode::ProxyMesh) {
@@ -1015,13 +1013,13 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 			if (pa.w() <= 0.f) continue;
 			o.x = pa.x() / pa.w();
 			o.y = pa.y() / pa.w();
-			if (is_inside_rect(o)) {
+			if (multi_is_inside_rect(o)) {
 				n_selected++;
 				proxy_cage.labels[i] = 1;
 				proxy_cage.colors[i] = Eigen::Vector3f(
-					m_brush_color[0],
-					m_brush_color[1],
-					m_brush_color[2]
+					multi_brush_color[0],
+					multi_brush_color[1],
+					multi_brush_color[2]
 				);
 			}
 		}
@@ -1033,12 +1031,12 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 			}
 		}
 		cage_edition.selection_barycenter = point_t::Zero();
-		if (!m_plane_dir.isZero())
+		if (!multi_plane_dir.isZero())
 		{
 			matrix3_t rot;
-			rot.col(0) = m_plane_dir1;
-			rot.col(1) = m_plane_dir;
-			rot.col(2) = m_plane_dir2;
+			rot.col(0) = multi_plane_dir1;
+			rot.col(1) = multi_plane_dir;
+			rot.col(2) = multi_plane_dir2;
 			cage_edition.selection_rotation = rot;
 		}
 		else
@@ -1048,7 +1046,7 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 		cage_edition.selection_scaling = point_t::Ones();
 
 		//Sostituito cage_edition.selection_barycenter IN MODO CHE NON DIPENDA DA UNA CAGE
-		//Sostituito cage_edition.selected_vertices con i punti rossi std::vector<Eigen::Vector3f> m_selection_points
+		//Sostituito cage_edition.selected_vertices con i punti rossi std::vector<Eigen::Vector3f> multi_selection_points
 		//Compute the barycenter and rotation matrix of the selection
 		//std::cout << "cage_edition.selected_vertices size: " << cage_edition.selected_vertices.size() << std::endl;
 		//std::cout << "proxy_cage.vertices size: " << proxy_cage.vertices.size() << std::endl;
@@ -1062,23 +1060,20 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 		//std::cout << "cage_edition.selection_barycenter ORIGINAL: " << cage_edition.selection_barycenter << std::endl;
 
 
-		for (const auto selected_point : m_selection_points) {
+		for (const auto selected_point : multi_selection_points) {
 			cage_edition.selection_barycenter += selected_point;
 		}
-		cage_edition.selection_barycenter /= m_selection_points.size();
+		cage_edition.selection_barycenter /= multi_selection_points.size();
 
 		//std::cout << "cage_edition.selection_barycenter MODIFICATA: " << cage_edition.selection_barycenter << std::endl;
 
 	}
 }
 
-//##################### QUESTE FUNZIONI RELATIVE ALLE CAGES, NON DOVRANNO ESSERE PIù UTILIZZATE ###################################
-
-
 //Launched wih compute 
-void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices)
+void GrowingSelectionMulti::multi_set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices)
 {
-	std::cout << "GrowingSelection::set_proxy_mesh()" << std::endl;
+	std::cout << "GrowingSelectionMulti::multi_set_proxy_mesh()" << std::endl;
 
 	render_mode = ESelectionRenderMode::ProxyMesh;
 
@@ -1088,9 +1083,9 @@ void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<
 	// DEBUG
 	for (int i = 0; i < proxy_cage.colors.size(); i++) {
 		proxy_cage.colors[i] = Eigen::Vector3f(
-			m_cage_color[0],
-			m_cage_color[1],
-			m_cage_color[2]);
+			multi_cage_color[0],
+			multi_cage_color[1],
+			multi_cage_color[2]);
 	}
 
 	// TODO: refine this!
@@ -1101,18 +1096,18 @@ void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<
 	std::cout << "Computed proxy with " << points.size() << " vertices and " << indices.size() / 3 << " triangles" << std::endl;
 }
 
-//Launched by GrowingSelection::fix_proxy_mesh()
-void GrowingSelection::compute_proxy_mesh() {
-	std::cout << "GrowingSelection::compute_proxy_mesh()" << std::endl;
-	std::cout << "m_selection_points.size(): " << m_selection_points.size() << std::endl;
+//Launched by GrowingSelectionMulti::multi_fix_proxy_mesh()
+void GrowingSelectionMulti::multi_compute_proxy_mesh() {
+	std::cout << "GrowingSelectionMulti::multi_compute_proxy_mesh()" << std::endl;
+	std::cout << "multi_selection_points.size(): " << multi_selection_points.size() << std::endl;
 
     selection_map selection_mapObj;
     std::map<std::size_t, Eigen::Vector3f> selection_points_map = selection_mapObj.getPrivateMap();
-    std::cout << "RegionGrowing::m_selection_points_map.size() " << selection_points_map.size() << std::endl;
+    std::cout << "RegionGrowing::multi_selection_points_map.size() " << selection_points_map.size() << std::endl;
 /*
 //Interazione di prova con elementi della mappa
 
-	for (int i=0; i<m_selection_points.size(); i++){
+	for (int i=0; i<multi_selection_points.size(); i++){
 		//AGGIUNGERE CONTROLLO SUI DUPLICATI
 
 		for (const auto& pair : selection_points_map) {
@@ -1123,7 +1118,7 @@ void GrowingSelection::compute_proxy_mesh() {
 */		
 	// If there is no selection mesh, extract it!
 	if (selection_mesh.vertices.size() == 0) {
-		extract_fine_mesh();
+		multi_extract_fine_mesh();
 	}
 
 	// Clear selected vertices
@@ -1147,26 +1142,26 @@ void GrowingSelection::compute_proxy_mesh() {
 	Eigen::MatrixXd output_V;
 	Eigen::MatrixXi output_F;
 	Eigen::VectorXi output_J;
-	if (m_decimation_algorithm == EDecimationAlgorithm::ShortestEdge) {
+	if (multi_decimation_algorithm == EDecimationAlgorithm::ShortestEdge) {
 		igl::decimate(input_V, input_F, proxy_size, output_V, output_F, output_J);
-	} else if (m_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsQuadratic) {
-		if (m_progressive_hulls_params.presimplify) {
-			igl::decimate(input_V, input_F, std::max(proxy_size, int(m_progressive_hulls_params.presimplification_ratio * input_F.rows())), output_V, output_F, output_J);
+	} else if (multi_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsQuadratic) {
+		if (multi_progressive_hulls_params.presimplify) {
+			igl::decimate(input_V, input_F, std::max(proxy_size, int(multi_progressive_hulls_params.presimplification_ratio * input_F.rows())), output_V, output_F, output_J);
 			input_F = output_F;
 			input_V = output_V;
 		}
-		bool success = progressive_hulls_quadratic(input_V, input_F, proxy_size, output_V, output_F, output_J, m_progressive_hulls_params);
+		bool success = progressive_hulls_quadratic(input_V, input_F, proxy_size, output_V, output_F, output_J, multi_progressive_hulls_params);
 		if (!success) {
 			std::cout << "Failed to compute progressive hulls, please try again!" << std::endl;
 			return;
 		}
-	} else if (m_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsLinear) {
-		if (m_progressive_hulls_params.presimplify) {
-			igl::decimate(input_V, input_F, std::max(proxy_size, int(m_progressive_hulls_params.presimplification_ratio * input_F.rows())), output_V, output_F, output_J);
+	} else if (multi_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsLinear) {
+		if (multi_progressive_hulls_params.presimplify) {
+			igl::decimate(input_V, input_F, std::max(proxy_size, int(multi_progressive_hulls_params.presimplification_ratio * input_F.rows())), output_V, output_F, output_J);
 			input_F = output_F;
 			input_V = output_V;
 		}
-		bool success = progressive_hulls_linear(input_V, input_F, proxy_size, output_V, output_F, output_J, m_progressive_hulls_params);
+		bool success = progressive_hulls_linear(input_V, input_F, proxy_size, output_V, output_F, output_J, multi_progressive_hulls_params);
 		if (!success) {
 			std::cout << "Failed to compute progressive hulls, please try again!" << std::endl;
 			return;
@@ -1187,10 +1182,10 @@ void GrowingSelection::compute_proxy_mesh() {
 		new_indices_proxy[3*i+2] = output_F.row(i)(2);
 	}
 	
-	set_proxy_mesh(new_vertices_proxy, new_indices_proxy);
+	multi_set_proxy_mesh(new_vertices_proxy, new_indices_proxy);
 }
 
-void GrowingSelection::fix_fine_mesh() {
+void GrowingSelectionMulti::multi_fix_fine_mesh() {
 	// If there is no fine mesh, skip!
 	if (selection_mesh.vertices.size() == 0) {
 		std::cout << "Can't fix selection mesh because it is not defined..." << std::endl;
@@ -1233,7 +1228,7 @@ void GrowingSelection::fix_fine_mesh() {
     selection_mesh.normals.resize(new_vertices.size());
 }
 
-void miniOBJ(std::string file, std::vector<point_t>& vertices_proxy, std::vector<uint32_t>& indices_proxy)
+void multi_miniOBJ(std::string file, std::vector<point_t>& vertices_proxy, std::vector<uint32_t>& indices_proxy)
 {
 	std::ifstream infile(file);
 	std::string line;
@@ -1287,11 +1282,11 @@ void miniOBJ(std::string file, std::vector<point_t>& vertices_proxy, std::vector
 	}
 }
 
-void GrowingSelection::deform_proxy_from_file(std::string deformed_file)
+void GrowingSelectionMulti::multi_deform_proxy_from_file(std::string deformed_file)
 {
 	std::vector<point_t> vertices_proxy;
 	std::vector<uint32_t> indices_proxy;
-	miniOBJ(deformed_file, vertices_proxy, indices_proxy);
+	multi_miniOBJ(deformed_file, vertices_proxy, indices_proxy);
 
 	if (vertices_proxy.size() != proxy_cage.original_vertices.size() ||
 		indices_proxy.size() != proxy_cage.indices.size())
@@ -1300,11 +1295,11 @@ void GrowingSelection::deform_proxy_from_file(std::string deformed_file)
 	proxy_cage.vertices = vertices_proxy;
 }
 
-void GrowingSelection::proxy_mesh_from_file(std::string orig_file)
+void GrowingSelectionMulti::multi_proxy_mesh_from_file(std::string orig_file)
 {
 	std::vector<point_t> vertices_proxy;
 	std::vector<uint32_t> indices_proxy;
-	miniOBJ(orig_file, vertices_proxy, indices_proxy);
+	multi_miniOBJ(orig_file, vertices_proxy, indices_proxy);
 
 	render_mode = ESelectionRenderMode::ProxyMesh;
 
@@ -1318,19 +1313,19 @@ void GrowingSelection::proxy_mesh_from_file(std::string orig_file)
 
 	for (int i = 0; i < proxy_cage.colors.size(); i++) {
 		proxy_cage.colors[i] = Eigen::Vector3f(
-            m_cage_color[0],
-            m_cage_color[1],
-            m_cage_color[2]);
+            multi_cage_color[0],
+            multi_cage_color[1],
+            multi_cage_color[2]);
 	}
 
 	// std::cout << "Fixed proxy cage with meshfix" << std::endl;
 }
 
 //GUI Button "Compute Proxy" First function
-void GrowingSelection::fix_proxy_mesh() {
+void GrowingSelectionMulti::multi_fix_proxy_mesh() {
 	// If there is no proxy, extract one!
 	if (proxy_cage.vertices.size() == 0) {
-		compute_proxy_mesh();
+		multi_compute_proxy_mesh();
 	}
 
 	// Reset vertices to original_vertices! (in cage the cage was edited inbetween)
@@ -1382,32 +1377,32 @@ void GrowingSelection::fix_proxy_mesh() {
 	//Set the proxy mesh using the new vertices and indices
     for (int i = 0; i < proxy_cage.colors.size(); i++) {
         proxy_cage.colors[i] = Eigen::Vector3f(
-            m_cage_color[0],
-            m_cage_color[1],
-            m_cage_color[2]);
+            multi_cage_color[0],
+            multi_cage_color[1],
+            multi_cage_color[2]);
     }
 	std::cout << "Fixed proxy cage with meshfix" << std::endl;
 }
 
-void GrowingSelection::clear() {
-    m_selected_pixels.clear();
-    m_selected_pixels_imgui.clear();
-    m_projected_pixels.clear();
-	m_projected_cell_idx.clear();
-	// m_projected_features.clear();
-	m_projected_labels.clear();
-    m_selection_points.clear();
-	m_selection_labels.clear();
-    m_selection_cell_idx.clear();
-    m_selection_grid_bitfield.clear();
+void GrowingSelectionMulti::multi_clear() {
+    multi_selected_pixels.clear();
+    multi_selected_pixels_imgui.clear();
+    multi_projected_pixels.clear();
+	multi_projected_cell_idx.clear();
+	// multi_projected_features.clear();
+	multi_projected_labels.clear();
+    multi_selection_points.clear();
+	multi_selection_labels.clear();
+    multi_selection_cell_idx.clear();
+    multi_selection_grid_bitfield.clear();
 	
 
 	// Reset growing
 	// NOTE: this may be redundant too
-	reset_growing();
+	multi_reset_growing();
 }
 
-void draw_debug_gl(
+void multi_draw_debug_gl(
 	const std::vector<Eigen::Vector3f>& points, 
 	const std::vector<Eigen::Vector3f>& colors, 
 	const Eigen::Vector2i& resolution, 
@@ -1512,7 +1507,7 @@ void draw_debug_gl(
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void draw_selection_gl(
+void multi_draw_selection_gl(
     const std::vector<Eigen::Vector3f>& points, 
     const std::vector<uint8_t>& labels,
     const Eigen::Vector2i& resolution, 
@@ -1643,7 +1638,7 @@ void draw_selection_gl(
 }
 
 // NOTE: we have duplicates in here!
-void inner_faces_from_tet(Eigen::MatrixXi& tet_tets, std::vector<uint32_t>& tet_indices) {
+void multi_inner_faces_from_tet(Eigen::MatrixXi& tet_tets, std::vector<uint32_t>& tet_indices) {
     tet_indices.resize(tet_tets.rows()*3*4);
     for (int i = 0; i < tet_tets.rows(); i++) {
         for (int j = 0; j < 4; j++) {
@@ -1654,15 +1649,15 @@ void inner_faces_from_tet(Eigen::MatrixXi& tet_tets, std::vector<uint32_t>& tet_
     }
 }
 
-void GrowingSelection::force_cage() {
+void GrowingSelectionMulti::multi_force_cage() {
 	proxy_cage.original_vertices = proxy_cage.vertices;
 }
 
-void GrowingSelection::extract_tet_mesh() {
+void GrowingSelectionMulti::multi_extract_tet_mesh() {
     // Make sure the proxy mesh is set
 	if (proxy_cage.vertices.size() == 0) {
-		compute_proxy_mesh();
-		fix_proxy_mesh();
+		multi_compute_proxy_mesh();
+		multi_fix_proxy_mesh();
 	}
     if (proxy_cage.vertices.size() == 0) {
         return;
@@ -1734,16 +1729,16 @@ void GrowingSelection::extract_tet_mesh() {
         output_tets_host[4*i+3] = tetgen_generated_tets.row(i)(3);
     }
 
-    tet_interpolation_mesh = std::make_shared<TetMesh<float_t, point_t>>(output_vertices_host, output_faces_host, output_tets_host, m_aabb);
+    tet_interpolation_mesh = std::make_shared<TetMesh<float_t, point_t>>(output_vertices_host, output_faces_host, output_tets_host, multi_aabb);
 
     std::vector<uint32_t> tet_faces_host;
-    inner_faces_from_tet(tetgen_generated_tets, tet_faces_host);
+    multi_inner_faces_from_tet(tetgen_generated_tets, tet_faces_host);
 
 	// std::cout << "RELEVANT: " << proxy_cage.vertices.size() << std::endl;
     std::cout << "Computed tet mesh with " << n_verts << " vertices, " << n_faces << " triangles and " << n_tets << " tets" << std::endl;
 }   
 
-void GrowingSelection::initialize_mvc() {
+void GrowingSelectionMulti::multi_initialize_mvc() {
     if (proxy_cage.vertices.size() == 0) {
         std::cout << "Proxy cage is not defined..." << std::endl;
         return;
@@ -1755,15 +1750,15 @@ void GrowingSelection::initialize_mvc() {
     }
 
     proxy_cage.compute_mvc(tet_interpolation_mesh->original_vertices, tet_interpolation_mesh->mvc_coordinates, tet_interpolation_mesh->labels, true);
-	proxy_cage.compute_mvc(tet_interpolation_mesh->original_vertices, tet_interpolation_mesh->gamma_coordinates, tet_interpolation_mesh->labels, true, m_poisson_editing.mvc_gamma);
+	proxy_cage.compute_mvc(tet_interpolation_mesh->original_vertices, tet_interpolation_mesh->gamma_coordinates, tet_interpolation_mesh->labels, true, multi_poisson_editing.mvc_gamma);
 
 }
 
-void GrowingSelection::update_tet_mesh() {
+void GrowingSelectionMulti::multi_update_tet_mesh() {
 	// Make sure to compute the interpolation mesh before updating it
 	if (!tet_interpolation_mesh) {
-		extract_tet_mesh();
-		initialize_mvc();
+		multi_extract_tet_mesh();
+		multi_initialize_mvc();
 	}
 
 	if (!tet_interpolation_mesh || tet_interpolation_mesh->vertices.size() == 0) {
@@ -1775,15 +1770,15 @@ void GrowingSelection::update_tet_mesh() {
 	auto abc = std::chrono::system_clock::now();
     proxy_cage.interpolate_with_mvc(tet_interpolation_mesh);
 	auto abcd = std::chrono::system_clock::now();
-	if (m_correct_direction) {
-		tet_interpolation_mesh->update_local_rotations(m_stream);
+	if (multi_correct_direction) {
+		tet_interpolation_mesh->update_local_rotations(multi_stream);
 	}
-	tet_interpolation_mesh->build_tet_grid(m_stream);
+	tet_interpolation_mesh->build_tet_grid(multi_stream);
 	//std::cout << (std::chrono::system_clock::now() - ab).count() << " " << (std::chrono::system_clock::now() - abc).count() << " " << (std::chrono::system_clock::now() - abcd).count() << std::endl;
 }
 
 // DEBUG
-void GrowingSelection::export_proxy_mesh() {
+void GrowingSelectionMulti::multi_export_proxy_mesh() {
     Eigen::MatrixXd V(proxy_cage.vertices.size(), 3);
     Eigen::MatrixXi F(proxy_cage.indices.size() / 3, 3);
     for (size_t i = 0; i < proxy_cage.vertices.size(); ++i) {
@@ -1796,7 +1791,7 @@ void GrowingSelection::export_proxy_mesh() {
     igl::writePLY("proxy.ply",V,F);
 }
 
-void GrowingSelection::draw_gl(
+void GrowingSelectionMulti::multi_draw_gl(
         const Eigen::Vector2i& resolution, 
         const Eigen::Vector2f& focal_length, 
         const Eigen::Matrix<float, 3, 4>& camera_matrix, 
@@ -1804,9 +1799,9 @@ void GrowingSelection::draw_gl(
     {
     
 	if (render_mode == ESelectionRenderMode::Projection) {
-		draw_selection_gl(m_projected_pixels, m_projected_labels, resolution, focal_length, camera_matrix, screen_center, (int)m_pc_render_mode, m_pc_render_max_level);
+		multi_draw_selection_gl(multi_projected_pixels, multi_projected_labels, resolution, focal_length, camera_matrix, screen_center, (int)multi_pc_render_mode, multi_pc_render_max_level);
 	} else if (render_mode == ESelectionRenderMode::RegionGrowing) {
-		draw_selection_gl(m_selection_points, m_selection_labels, resolution, focal_length, camera_matrix, screen_center, (int)m_pc_render_mode, m_pc_render_max_level);
+		multi_draw_selection_gl(multi_selection_points, multi_selection_labels, resolution, focal_length, camera_matrix, screen_center, (int)multi_pc_render_mode, multi_pc_render_max_level);
 	} else if (render_mode == ESelectionRenderMode::SelectionMesh) {
 		selection_mesh.draw_gl(resolution, focal_length, camera_matrix, screen_center);
 	} else if (render_mode == ESelectionRenderMode::ProxyMesh) {
@@ -1814,10 +1809,10 @@ void GrowingSelection::draw_gl(
 	} else if (tet_interpolation_mesh != nullptr && render_mode == ESelectionRenderMode::TetMesh) {
 		tet_interpolation_mesh->draw_gl(resolution, focal_length, camera_matrix, screen_center, display_in_tet);
 	}
-	draw_debug_gl(m_debug_points, m_debug_colors, resolution, focal_length, camera_matrix, screen_center);
+	multi_draw_debug_gl(multi_debug_points, multi_debug_colors, resolution, focal_length, camera_matrix, screen_center);
 }
 
-__global__ void shoot_selection_rays_kernel(
+__global__ void multi_shoot_selection_rays_kernel(
 	const uint32_t n_rays, 
 	Vector2i* __restrict__ ray_pixels,
 	Vector2i resolution,
@@ -1912,7 +1907,7 @@ __global__ void shoot_selection_rays_kernel(
 	}
 }
 
-__global__ void composite_shot_rays(
+__global__ void multi_composite_shot_rays(
 	const uint32_t n_rays,
 	BoundingBox aabb,
 	const uint32_t* __restrict__ rays_counter,
@@ -1979,321 +1974,85 @@ __global__ void composite_shot_rays(
 	// accumulated_features[i] = feature_ray;
 }
 
-//GUI Button "Project" in Cage Deformation B B B B FONDAMENTALE PER SCRIBBLING
-//Project the selected pixels using rays and then update the growing selection based on the projection results. 
-void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray_pixels, const Vector2i& resolution, const Vector2f& focal_length,  const Matrix<float, 3, 4>& camera_matrix, const Vector2f& screen_center, cudaStream_t stream) {
-	uint32_t n_rays = ray_pixels.size();
-	if (n_rays == 0) {
-		return;
-	}
-	
-	std::cout << "GrowingSelection::project_selection_pixels()" << std::endl;
-
-	const uint32_t padded_output_width = m_nerf_network->padded_output_width();
-	const uint32_t padded_density_output_width = m_nerf_network->padded_density_output_width();
-	const uint32_t floats_per_coord = sizeof(NerfCoordinate) / sizeof(float) + m_nerf_network->n_extra_dims();
-	const uint32_t extra_stride = m_nerf_network->n_extra_dims() * sizeof(float); // extra stride on top of base NerfCoordinate struct
-	const uint32_t max_samples = n_rays * NERF_STEPS();
-
-	//Allocate GPU memory for various data structures
-	tcnn::GPUMemoryArena::Allocation alloc;
-	auto scratch = allocate_workspace_and_distribute<
-		uint32_t, // ray_indices
-		Ray, // rays
-		uint32_t, // numsteps
-		float, // coords
-		float, // max_level
-		network_precision_t, // mlp_out
-		uint32_t, // ray_counter
-		uint32_t, // counter
-		Vector2i, // pixels
-		Vector3f, // coords_projected
-		uint32_t,  // grid_indices
-		FeatureVector // accumulated_features
-	>(
-		stream, &alloc,
-		n_rays,
-		n_rays,
-		n_rays * 2,
-		max_samples * floats_per_coord,
-		max_samples,
-		max_samples * padded_density_output_width,
-		1,
-		1,
-		n_rays,
-		n_rays,
-		n_rays,
-		n_rays
-	);
-
-	//Copy the input ray_pixels data to the GPU memory and initialize ray_counter and numsteps_counter with zeros
-	uint32_t* ray_indices = std::get<0>(scratch);
-	Ray* rays = std::get<1>(scratch);
-	uint32_t* numsteps = std::get<2>(scratch);
-	float* coords = std::get<3>(scratch);
-	float* max_level = std::get<4>(scratch);
-	// NOTE: this is the output of the density network!
-	network_precision_t* mlp_out = std::get<5>(scratch);
-	uint32_t* ray_counter = std::get<6>(scratch);
-	uint32_t* numsteps_counter = std::get<7>(scratch);
-	Vector2i* pixels = std::get<8>(scratch);
-	Vector3f* coords_projected = std::get<9>(scratch);
-	uint32_t* grid_indices = std::get<10>(scratch);
-	FeatureVector* accumulated_features = std::get<11>(scratch);
-
-	CUDA_CHECK_THROW(cudaMemcpyAsync(pixels, ray_pixels.data(), n_rays * sizeof(Vector2i), cudaMemcpyHostToDevice, stream));
-	CUDA_CHECK_THROW(cudaMemsetAsync(ray_counter, 0, sizeof(uint32_t), stream));
-	CUDA_CHECK_THROW(cudaMemsetAsync(numsteps_counter, 0, sizeof(uint32_t), stream));
-
-	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-
-	//Compute the rays, number of steps, and coordinates for each ray
-	linear_kernel(shoot_selection_rays_kernel, 0, stream,
-		n_rays,
-		pixels,
-		resolution,
-		focal_length,
-		camera_matrix,
-		screen_center,
-		m_aabb,
-		max_samples,
-		ray_counter,
-		numsteps_counter,
-		ray_indices,
-		rays,
-		numsteps,
-		PitchedPtr<NerfCoordinate>((NerfCoordinate*)coords, 1, 0, extra_stride),
-		m_density_grid_bitfield.data(),
-		m_cone_angle_constant,
-		m_light_dir.normalized());
-
-	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-
-	//Copy the results from the GPU memory back to the host memory
-	// TODO: pass NerfPosition rather than NerfCoordinate
-	std::vector<NerfCoordinate> coords_host(max_samples, NerfCoordinate(Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), 0.f));
-
-	std::vector<Ray> rays_host;
-	rays_host.resize(n_rays);
-	uint32_t numsteps_counter_host;
-	CUDA_CHECK_THROW(cudaMemcpyAsync(&numsteps_counter_host, numsteps_counter, sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
-	CUDA_CHECK_THROW(cudaMemcpyAsync(rays_host.data(), rays, n_rays * sizeof(Ray), cudaMemcpyDeviceToHost, stream));
-	CUDA_CHECK_THROW(cudaMemcpyAsync(coords_host.data(), coords, max_samples * floats_per_coord * sizeof(float), cudaMemcpyDeviceToHost, stream));
-	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-
-	//Check if any rays were found
-	if (numsteps_counter_host == 0) {
-		std::cout << "Couldn't find surface when shooting rays..." << std::endl;
-		return;
-	}
-
-	tcnn::GPUMatrix<float> coords_matrix((float*)coords, floats_per_coord, max_samples);
-	tcnn::GPUMatrix<network_precision_t> sigmafeature_matrix(mlp_out, padded_output_width, max_samples);
-
-	//Compute the density values for the coordinates
-	m_nerf_network->density(stream, coords_matrix, sigmafeature_matrix, false);
-
-	//Compute the projected coordinates, grid indices and accumulated features
-	linear_kernel(composite_shot_rays, 0, stream,
-		n_rays,
-		m_aabb,
-		ray_counter,
-		padded_density_output_width,
-		mlp_out,
-		numsteps_counter,
-		rays,
-		numsteps,
-		PitchedPtr<const NerfCoordinate>((NerfCoordinate*)coords, 1, 0, extra_stride),
-		m_rgb_activation,
-		m_density_activation,
-		coords_projected,
-		grid_indices,
-		transmittance_threshold
-		// accumulated_features
-	);
-
-	//Copy the results back to the host memory
-	std::vector<uint32_t> grid_indices_host_tmp;
-	std::vector<uint32_t> grid_mips_host_tmp;
-	std::vector<Eigen::Vector3f> m_projected_pixels_tmp;
-	uint32_t ray_counter_host;
-	// std::vector<FeatureVector> m_projected_features_tmp;
-	m_projected_pixels_tmp.resize(n_rays);
-	grid_indices_host_tmp.resize(n_rays);
-	// m_projected_features_tmp.resize(n_rays);
-	CUDA_CHECK_THROW(cudaMemcpyAsync(m_projected_pixels_tmp.data(), coords_projected, n_rays * sizeof(Vector3f), cudaMemcpyDeviceToHost, stream));
-	CUDA_CHECK_THROW(cudaMemcpyAsync(grid_indices_host_tmp.data(), grid_indices, n_rays * sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
-	CUDA_CHECK_THROW(cudaMemcpyAsync(&ray_counter_host, ray_counter, sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
-	// CUDA_CHECK_THROW(cudaMemcpyAsync(m_projected_features_tmp.data(), accumulated_features, n_rays * sizeof(FeatureVector), cudaMemcpyDeviceToHost, stream));
-
-	// printf("Shot %u rays but counted %u only.\n", n_rays, ray_counter_host);
-
-	//Update the m_growing_level based on the maximum level found in the grid indices
-	// If automatic level selection is on, we need to find the maximum level and set the growing level accordingly
-	if (m_automatic_max_level) {
-		m_growing_level = 0;
-		for (int i = 0; i< ray_counter_host; i++) {
-			if (m_aabb.contains(m_projected_pixels_tmp[i])) {
-				uint32_t level = grid_indices_host_tmp[i] / NERF_GRIDVOLUME();
-
-				// If it's bigger than the requested level, discard it
-				if (level > m_growing_level) {
-					m_growing_level = level;
-				}
-			}
-		}
-	}
-
-	std::cout << "ray_counter_host: " << ray_counter_host << std::endl;
-	std::cout << "m_projected_pixels_tmp size: " << m_projected_pixels_tmp.size() << std::endl;
-	
-	// Set to avoid duplicate cell_idx
-	std::set<uint32_t> cell_idx_set;
-	//In generale servirà uno scribbling vasto, prendendo moltissimi punti iniziali (solo in seguito limitati da max_surface_points)
-	//BISOGNA AUTOMATIZZARE QUESTA FASE, permettendo di selezionare pochi punti superficiali randomici e distanti.
-//	int max_surface_points = 2000;			//limite di punti rossi desiderati ottenuti con scribbling
-	//Loop through the rays and update the projected cell indices, projected pixels, projected labels, and the cell index set
-	// Check for rays that did not reach transmittance and discards them if they are outside the requested level
-	// TODO: do something cleaner here...
-	for (int i = 0; i< ray_counter_host; i++) {
-//		if (cell_idx_set.size() < max_surface_points){
-			//Check if the current pixel is within the AABB
-			if (m_aabb.contains(m_projected_pixels_tmp[i])) {
-				//Get the level of the current grid index
-				uint32_t level = grid_indices_host_tmp[i] / NERF_GRIDVOLUME();
-//				std::cout << "Pixel " << i << "is within the AABB" << std::endl;
-				//If the level is greater than the growing level, discard it
-				// NOTE: should not happen with automatic level selection
-				if (level > m_growing_level) {
-//				std::cout << "Level is greater than the growing level: skipped: " << (level > m_growing_level) << std::endl;
-					continue;
-				}
-
-				//Get the cell index
-				uint32_t cell_idx = grid_indices_host_tmp[i];
-				//If the level is less than the growing level, uplift the cell index
-				if (level < m_growing_level) {
-					cell_idx = get_upper_cell_idx(cell_idx, m_growing_level);
-//					std::cout << "Updated cell_idx: " << std::endl;
-
-				};
-				//Get the level of the updated cell index
-				level = cell_idx / NERF_GRIDVOLUME();
-				//If the cell index is already in the set, discard it
-				if (cell_idx_set.count(cell_idx) > 0) {
-//					std::cout << "Skipped, already in the set " << std::endl;
-					continue;
-				}
-
-				//printf("Index ray: %u (%u)\n", cell_idx, NERF_GRIDVOLUME());
-
-				//Add the cell index, pixel, and label to their respective vectors
-				m_projected_cell_idx.push_back(cell_idx);
-				m_projected_pixels.push_back(m_projected_pixels_tmp[i]);
-				//m_projected_features.push_back(m_projected_features_tmp[i]);
-				m_projected_labels.push_back(0);
-				//Add the cell index to the set
-				cell_idx_set.insert(cell_idx);
-//				std::cout << "Cell " << i << "added" << std::endl;
-			}
-//		}
-	}
-
-	//Update the n_rays variable based on the size of the m_projected_cell_idx vector
-	n_rays = m_projected_cell_idx.size(); // Update n_rays accordingly
-	if (n_rays == 0) {
-		std::cout << "Couldn't find surface when shooting rays..." << std::endl;
-		return;
-	}
-	std::cout << "Reprojected " << n_rays << " rays" << std::endl;
-	
-	//Clear the selected pixels and reset the growing selection
-	m_selected_pixels.clear();
-    m_selected_pixels_imgui.clear();
-
-	// Reset growing if it had already been done
-	reset_growing();
-}
-
-//Launched by GrowingSelection::project_selection_pixels()
-void GrowingSelection::reset_growing() {
+//Launched by GrowingSelectionMulti::multi_project_selection_pixels()
+void GrowingSelectionMulti::multi_reset_growing() {
 
 	cage_edition.selected_vertices.clear();
 
 	render_mode = ESelectionRenderMode::ScreenSelection;
-	m_performed_closing = false;
+	multi_performed_closing = false;
 
 	// Make sure to reset the gizmo to TRANSLATE
-	m_gizmo_op = ImGuizmo::TRANSLATE;
+	multi_gizmo_op = ImGuizmo::TRANSLATE;
 
 	// Clear the proxy and tet
 	proxy_cage = Cage<float_t, point_t>();
 	tet_interpolation_mesh = nullptr;
 
-	m_region_growing.reset_growing(m_projected_cell_idx, m_growing_level);
+	multi_region_growing.reset_growing(multi_projected_cell_idx, multi_growing_level);
 
-	m_selection_points = m_region_growing.selection_points();
-	m_selection_cell_idx = m_region_growing.selection_cell_idx();
+	multi_selection_points = multi_region_growing.selection_points();
+	multi_selection_cell_idx = multi_region_growing.selection_cell_idx();
 
-	m_performed_closing = false;
+	multi_performed_closing = false;
 }
 
-void GrowingSelection::upscale_growing() {
-	m_region_growing.upscale_selection(m_growing_level);
+void GrowingSelectionMulti::multi_upscale_growing() {
+	multi_region_growing.upscale_selection(multi_growing_level);
 
-	m_selection_grid_bitfield = m_region_growing.selection_grid_bitfield();
-	m_selection_points = m_region_growing.selection_points();
-	m_selection_cell_idx = m_region_growing.selection_cell_idx();
-	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
-	m_growing_level = m_region_growing.growing_level();
+	multi_selection_grid_bitfield = multi_region_growing.selection_grid_bitfield();
+	multi_selection_points = multi_region_growing.selection_points();
+	multi_selection_cell_idx = multi_region_growing.selection_cell_idx();
+	multi_selection_labels = std::vector<uint8_t>(multi_selection_points.size(), 0);
+	multi_growing_level = multi_region_growing.growing_level();
 }
 
 //GUI Button "Grow region" , first function
-void GrowingSelection::grow_region() {
+void GrowingSelectionMulti::multi_grow_region() {
 	
-	m_region_growing.grow_region(m_density_threshold, m_region_growing_mode, m_growing_level, m_growing_steps);
+	multi_region_growing.grow_region(multi_density_threshold, multi_region_growing_mode, multi_growing_level, multi_growing_steps);
 
-	m_selection_grid_bitfield = m_region_growing.selection_grid_bitfield();
-	m_selection_points = m_region_growing.selection_points();
-	m_selection_cell_idx = m_region_growing.selection_cell_idx();
-	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
-	m_growing_level = m_region_growing.growing_level();
+	multi_selection_grid_bitfield = multi_region_growing.selection_grid_bitfield();
+	multi_selection_points = multi_region_growing.selection_points();
+	multi_selection_cell_idx = multi_region_growing.selection_cell_idx();
+	multi_selection_labels = std::vector<uint8_t>(multi_selection_points.size(), 0);
+	multi_growing_level = multi_region_growing.growing_level();
 
-	m_performed_closing = false;
+	multi_performed_closing = false;
 }
 
-void GrowingSelection::dilate() {
+void GrowingSelectionMulti::multi_dilate() {
 	//Aggiungere parametri alla funzione dilate per poi passarli al dilate interno
-	m_selection_grid_bitfield = m_MM_operations->dilate(m_selection_grid_bitfield, m_growing_level, m_selection_points, m_selection_cell_idx);
+	multi_selection_grid_bitfield = multi_MM_operations->dilate(multi_selection_grid_bitfield, multi_growing_level, multi_selection_points, multi_selection_cell_idx);
 
-	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
+	multi_selection_labels = std::vector<uint8_t>(multi_selection_points.size(), 0);
 }
 
 
-void GrowingSelection::erode() {
+void GrowingSelectionMulti::multi_erode() {
 	//Aggiungere parametri alla funzione erode per poi passarli al erode interno
 
-	m_selection_grid_bitfield = m_MM_operations->erode(m_selection_grid_bitfield, m_growing_level, m_selection_points, m_selection_cell_idx);
+	multi_selection_grid_bitfield = multi_MM_operations->erode(multi_selection_grid_bitfield, multi_growing_level, multi_selection_points, multi_selection_cell_idx);
 
-	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
+	multi_selection_labels = std::vector<uint8_t>(multi_selection_points.size(), 0);
 }
 
 // TODO: work directly on the bitfield computed before instead of float (we have a 0/1 occupancy field)
-void GrowingSelection::extract_fine_mesh() {
-	std::cout << "GrowingSelection::extract_fine_mesh()" << std::endl;
+void GrowingSelectionMulti::multi_extract_fine_mesh() {
+	std::cout << "GrowingSelectionMulti::multi_extract_fine_mesh()" << std::endl;
 
 	// Make sure dilation erosion are performed before extracting the mesh 
-	if (m_use_morphological && !m_performed_closing) {
-		m_performed_closing = true;
-		dilate();
-		erode();
+	if (multi_use_morphological && !multi_performed_closing) {
+		multi_performed_closing = true;
+		multi_dilate();
+		multi_erode();
 	}
 
 	// Will be related to max level!
 	// First, compute the object bounding_box and its corresponding voxel resolution
 	BoundingBox object_aabb;
 	Eigen::Vector3i res3d = Eigen::Vector3i::Constant(NERF_GRIDSIZE());
-	const float scale = scalbnf(1.0f, m_growing_level);
+	const float scale = scalbnf(1.0f, multi_growing_level);
 
 	object_aabb.enlarge(scale * (Vector3f{0.f,0.f,0.f} - Eigen::Vector3f::Constant(0.5f)) + Eigen::Vector3f::Constant(0.5f));
 	object_aabb.enlarge(scale * (Vector3f{1.f,1.f,1.f} - Eigen::Vector3f::Constant(0.5f)) + Eigen::Vector3f::Constant(0.5f));
@@ -2302,7 +2061,7 @@ void GrowingSelection::extract_fine_mesh() {
 	std::vector<float> density_host(n_elements, 0.f);
 	// Then, set the density accordingly with the following ordering:
 	// x+ y*res_3d.x() + z*res_3d.x()*res_3d.y();
-	for (const auto& current_cell : m_selection_cell_idx) {
+	for (const auto& current_cell : multi_selection_cell_idx) {
 		const uint32_t level = current_cell / (NERF_GRIDVOLUME());
 		const uint32_t pos_idx = current_cell % (NERF_GRIDVOLUME());
 
@@ -2314,7 +2073,7 @@ void GrowingSelection::extract_fine_mesh() {
 			continue;
 		}
 
-		if (level == m_growing_level) {
+		if (level == multi_growing_level) {
 			// uint32_t x = tcnn::morton3D_invert(pos_idx>>0) - voxel_aabb.min.x();
 			// uint32_t y = tcnn::morton3D_invert(pos_idx>>1) - voxel_aabb.min.y();
 			// uint32_t z = tcnn::morton3D_invert(pos_idx>>2) - voxel_aabb.min.z();
@@ -2333,7 +2092,7 @@ void GrowingSelection::extract_fine_mesh() {
     MeshState selection_mesh_gpu;
 
 	// Then, perform marching cubes
-	marching_cubes_gpu(m_stream, object_aabb, res3d, 0.5f, density, selection_mesh_gpu.verts, selection_mesh_gpu.indices);
+	marching_cubes_gpu(multi_stream, object_aabb, res3d, 0.5f, density, selection_mesh_gpu.verts, selection_mesh_gpu.indices);
 
 	uint32_t n_verts = (uint32_t)selection_mesh_gpu.verts.size();
 	
@@ -2353,7 +2112,7 @@ static uint32_t cubemap_map[6] {
 };
 
 // See: https://en.wikipedia.org/wiki/Cube_mapping#Memory_addressing
-void convert_cube_uv_to_xyz(int index, float u, float v, float *x, float *y, float *z)
+void multi_convert_cube_uv_to_xyz(int index, float u, float v, float *x, float *y, float *z)
 {
   switch (index)
   {
@@ -2366,7 +2125,7 @@ void convert_cube_uv_to_xyz(int index, float u, float v, float *x, float *y, flo
   }
 }
 
-__global__ void activate_network_output(
+__global__ void multi_activate_network_output(
 	const uint32_t n_elements,
 	int padded_output_width,
 	const tcnn::network_precision_t* network_output,
@@ -2384,7 +2143,7 @@ __global__ void activate_network_output(
 	density[i] = network_to_density(float(local_network_output[3]), density_activation);
 }
 
-__global__ void filter_empty(
+__global__ void multi_filter_empty(
 	const uint32_t n_elements,
 	const BoundingBox aabb,
 	const uint8_t* occupancy_grid,
@@ -2405,7 +2164,7 @@ __global__ void filter_empty(
 }
 
 //is_inside indicates whether the computation should be done inside or outside the proxy cage  
-void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
+void GrowingSelectionMulti::multi_compute_poisson_boundary(const bool is_inside) {
 	//Check if the proxy cage has any vertices. If not, print a message and return.
 	if (proxy_cage.vertices.size() == 0) {
 		std::cout << "Computing boundary values requires a proxy cage..." << std::endl;
@@ -2414,11 +2173,11 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 	//Set the vertices variable to either the original vertices or the proxy cage vertices.
 	const std::vector<point_t>& vertices = is_inside ? proxy_cage.original_vertices : proxy_cage.vertices;
 	const uint32_t n_verts = vertices.size();
-	const uint32_t n_sh_samples = m_poisson_editing.sh_sampling_width *  m_poisson_editing.sh_sampling_width;
+	const uint32_t n_sh_samples = multi_poisson_editing.sh_sampling_width *  multi_poisson_editing.sh_sampling_width;
 
-	const uint32_t padded_output_width = m_nerf_network->padded_output_width();
-	const uint32_t floats_per_coord = sizeof(NerfCoordinate) / sizeof(float) + m_nerf_network->n_extra_dims();
-	const uint32_t extra_stride = m_nerf_network->n_extra_dims() * sizeof(float); // extra stride on top of base NerfCoordinate struct
+	const uint32_t padded_output_width = multi_nerf_network->padded_output_width();
+	const uint32_t floats_per_coord = sizeof(NerfCoordinate) / sizeof(float) + multi_nerf_network->n_extra_dims();
+	const uint32_t extra_stride = multi_nerf_network->n_extra_dims() * sizeof(float); // extra stride on top of base NerfCoordinate struct
 	const uint32_t n_samples = n_verts * n_sh_samples;
 	const uint32_t n_elements = next_multiple(n_samples, tcnn::batch_size_granularity); // ensure batch sizes have the right granularity
 
@@ -2429,15 +2188,15 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 	PitchedPtr<NerfCoordinate> coords_host_ptr = PitchedPtr<NerfCoordinate>((NerfCoordinate*)coords_host.data(), 1, 0, extra_stride);
 	// Loop through all the vertices and SH samples.
 	for (uint32_t k = 0; k < n_verts; k++) {
-		for (uint32_t i = 0; i < m_poisson_editing.sh_sampling_width; i++) {
-			for (uint32_t j = 0; j < m_poisson_editing.sh_sampling_width; j++) {
+		for (uint32_t i = 0; i < multi_poisson_editing.sh_sampling_width; i++) {
+			for (uint32_t j = 0; j < multi_poisson_editing.sh_sampling_width; j++) {
 				// Compute the Cartesian components for each point, and store them in the coords_host vector.
 				/* We now find the cartesian components for the point (i,j) */
 				float u,v,theta,phi,x,y,z;
 				
 				// First compute discretized 2d inputs in [0, 1]
-				u = (i + (float)std::rand() / RAND_MAX) / (m_hemisphere_width);	
-				v = (j + (float)std::rand() / RAND_MAX) / (m_hemisphere_width);
+				u = (i + (float)std::rand() / RAND_MAX) / (multi_hemisphere_width);	
+				v = (j + (float)std::rand() / RAND_MAX) / (multi_hemisphere_width);
 				
 				theta = 2.f * M_PI * v;
 				phi = acos(2.f*u-1.f);
@@ -2447,8 +2206,8 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 				z = std::cos(phi);
 
 				Eigen::Vector3f dir(x, y, z);
-				coords_host_ptr(n_sh_samples * k + i * m_poisson_editing.sh_sampling_width + j)->pos.p = warp_position(vertices[k], m_aabb);
-				coords_host_ptr(n_sh_samples * k + i * m_poisson_editing.sh_sampling_width + j)->dir.d = warp_direction(dir);
+				coords_host_ptr(n_sh_samples * k + i * multi_poisson_editing.sh_sampling_width + j)->pos.p = warp_position(vertices[k], multi_aabb);
+				coords_host_ptr(n_sh_samples * k + i * multi_poisson_editing.sh_sampling_width + j)->dir.d = warp_direction(dir);
 			}
 		}
 	}
@@ -2463,7 +2222,7 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 		Array3f, // rgb_out
 		float // density_out
 	>(
-		m_stream, &alloc,
+		multi_stream, &alloc,
 		n_elements * floats_per_coord,
 		n_elements * padded_output_width,
 		n_elements,
@@ -2476,32 +2235,32 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 	float* density_out = std::get<3>(scratch);
 
 	// Copy coords to GPU and prepare containers
-	CUDA_CHECK_THROW(cudaMemcpyAsync(coords, coords_host.data(), n_samples*floats_per_coord*sizeof(float), cudaMemcpyHostToDevice, m_stream));
+	CUDA_CHECK_THROW(cudaMemcpyAsync(coords, coords_host.data(), n_samples*floats_per_coord*sizeof(float), cudaMemcpyHostToDevice, multi_stream));
 	GPUMatrix<float> coord_matrix((float*)coords, (sizeof(NerfCoordinate) + extra_stride) / sizeof(float), n_elements);
 	GPUMatrix<network_precision_t> rgbsigma_matrix((network_precision_t*)mlp_out, padded_output_width, n_elements);
 	
 	// Perform inference on the neural network with the input coordinates and store the output in the rgbsigma_matrix.
-	m_nerf_network->inference_mixed_precision(m_stream, coord_matrix, rgbsigma_matrix);
+	multi_nerf_network->inference_mixed_precision(multi_stream, coord_matrix, rgbsigma_matrix);
 
 	std::cout << "Performed inference..." << std::endl;
 
 	// Activate the network output using a linear kernel function and store the results in the RGB and density outputs. 
-	linear_kernel(activate_network_output, 0, m_stream,
+	linear_kernel(multi_activate_network_output, 0, multi_stream,
 		n_samples,
 		padded_output_width,
 		mlp_out,
-		m_rgb_activation,
-		m_density_activation,
+		multi_rgb_activation,
+		multi_density_activation,
 		rgb_out,
 		density_out);
 
 	// Filter out empty samples using another linear kernel function.
 	if (is_inside)
 	{
-		linear_kernel(filter_empty, 0, m_stream,
+		linear_kernel(multi_filter_empty, 0, multi_stream,
 			n_samples,
-			m_aabb,
-			m_density_grid_bitfield.data(),
+			multi_aabb,
+			multi_density_grid_bitfield.data(),
 			PitchedPtr<NerfCoordinate>((NerfCoordinate*)coords, 1, 0, extra_stride),
 			density_out);
 	}
@@ -2512,9 +2271,9 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 	std::vector<float> density_host(n_samples);
 
 	// Copy back RGB and density outputs to host
-	CUDA_CHECK_THROW(cudaMemcpyAsync(rgb_host.data(), rgb_out, n_samples*sizeof(Eigen::Array3f), cudaMemcpyDeviceToHost, m_stream));
-	CUDA_CHECK_THROW(cudaMemcpyAsync(density_host.data(), density_out, n_samples*sizeof(float), cudaMemcpyDeviceToHost, m_stream));
-	CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream));
+	CUDA_CHECK_THROW(cudaMemcpyAsync(rgb_host.data(), rgb_out, n_samples*sizeof(Eigen::Array3f), cudaMemcpyDeviceToHost, multi_stream));
+	CUDA_CHECK_THROW(cudaMemcpyAsync(density_host.data(), density_out, n_samples*sizeof(float), cudaMemcpyDeviceToHost, multi_stream));
+	CUDA_CHECK_THROW(cudaStreamSynchronize(multi_stream));
 
 	// Store the density values in the appropriate target density vector (inside or outside the proxy cage).
 	std::vector<float>& target_density = is_inside ? proxy_cage.inside_density : proxy_cage.outside_density;
@@ -2546,19 +2305,19 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 	// std::cout << "Stored density and SHs..." << std::endl;
 }
 
-void GrowingSelection::interpolate_poisson_boundary() {
+void GrowingSelectionMulti::multi_interpolate_poisson_boundary() {
 	if (!tet_interpolation_mesh || tet_interpolation_mesh->vertices.size() == 0) {
 		std::cout << "Updating poisson MVC-interpolated tet values requires a valid tet mesh" << std::endl;
 		return;
 	}
 
 	if (proxy_cage.inside_shs.size() != proxy_cage.vertices.size()) {
-		compute_poisson_boundary(true);
+		multi_compute_poisson_boundary(true);
 		// std::cout << "Updating inside shs" << std::endl;
 	}
 
 	// In any case, re-compute the outside values
-	compute_poisson_boundary(false);
+	multi_compute_poisson_boundary(false);
 
 	uint32_t n_tet_vertices = tet_interpolation_mesh->vertices.size();
 	uint32_t n_cage_vertices = proxy_cage.vertices.size();
@@ -2596,20 +2355,20 @@ void GrowingSelection::interpolate_poisson_boundary() {
 	tet_interpolation_mesh->boundary_residual_density_gpu.copy_from_host(boundary_residual_density_host);
 	tet_interpolation_mesh->boundary_outside_density_gpu.copy_from_host(boundary_outside_density_host);
 
-	// m_debug_points.clear();
-	// m_debug_colors.clear();
+	// multi_debug_points.clear();
+	// multi_debug_colors.clear();
 	// for (int i = 0; i < n_tet_vertices; i++) {
-	// 	m_debug_points.push_back(tet_interpolation_mesh->vertices[i]);
-	// 	m_debug_colors.push_back(evaluate_sh9(boundary_shs_host[i], Eigen::Vector3f(0.f, 0.f, 1.f)));
+	// 	multi_debug_points.push_back(tet_interpolation_mesh->vertices[i]);
+	// 	multi_debug_colors.push_back(evaluate_sh9(boundary_shs_host[i], Eigen::Vector3f(0.f, 0.f, 1.f)));
 	// }
 
 
 	// std::cout << "Updated poisson MVC-interpolated tet values residuals..." << std::endl;
 }
 
-void GrowingSelection::generate_poisson_cube_map() {
+void GrowingSelectionMulti::multi_generate_poisson_cube_map() {
 	if (proxy_cage.inside_shs.size() == 0) {
-		compute_poisson_boundary(true);
+		multi_compute_poisson_boundary(true);
 		// std::cout << "Computing SHs to generate a cube map..." << std::endl;
 	}
 
@@ -2618,14 +2377,14 @@ void GrowingSelection::generate_poisson_cube_map() {
 		return;	
 	}
 
-	uint32_t debug_vertex_idx = cage_edition.selected_vertices.size() == 0 ? m_debug_ray_idx : cage_edition.selected_vertices[0];
+	uint32_t debug_vertex_idx = cage_edition.selected_vertices.size() == 0 ? multi_debug_ray_idx : cage_edition.selected_vertices[0];
 
 	SH9RGB chosen_sh = proxy_cage.inside_shs[debug_vertex_idx];
 
 	// For each face:
 	for (int f = 0; f < 6; f++) {
 		// Create a OpenGL texture identifier
-		glBindTexture(GL_TEXTURE_2D, m_poisson_editing.sh_cubemap_textures[f]);
+		glBindTexture(GL_TEXTURE_2D, multi_poisson_editing.sh_cubemap_textures[f]);
 
 		// Setup filtering parameters for display
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -2640,7 +2399,7 @@ void GrowingSelection::generate_poisson_cube_map() {
 				float v = (j - DEBUG_CUBEMAP_WIDTH/2.0)/(DEBUG_CUBEMAP_WIDTH/2.0);  
 				float u = (i - DEBUG_CUBEMAP_WIDTH/2.0)/(DEBUG_CUBEMAP_WIDTH/2.0);
 				Eigen::Vector3f dir;
-				convert_cube_uv_to_xyz(cubemap_map[f], u, v, &(dir.x()), &(dir.y()), &(dir.z()));
+				multi_convert_cube_uv_to_xyz(cubemap_map[f], u, v, &(dir.x()), &(dir.y()), &(dir.z()));
 				dir.normalize();
 
 				Eigen::Vector3f rgb = evaluate_sh9(chosen_sh, dir);
@@ -2655,20 +2414,20 @@ void GrowingSelection::generate_poisson_cube_map() {
 	}	
 }
 
-void GrowingSelection::to_json(nlohmann::json& j) {
+void GrowingSelectionMulti::multi_to_json(nlohmann::json& j) {
 
-	j["projected_pixels"] = m_projected_pixels;
-	j["projected_labels"] = m_projected_labels;
-	j["projected_cell_idx"] = m_projected_cell_idx;
-	// j["projected_features"] = m_projected_features;
+	j["projected_pixels"] = multi_projected_pixels;
+	j["projected_labels"] = multi_projected_labels;
+	j["projected_cell_idx"] = multi_projected_cell_idx;
+	// j["projected_features"] = multi_streamprojected_features;
 
-	j["selection_points"] = m_selection_points;
-	j["selection_labels"] = m_selection_labels;
-	j["selection_cell_idx"] = m_selection_cell_idx;
-	j["m_selection_grid_bitfield"] = m_selection_grid_bitfield;
+	j["selection_points"] = multi_selection_points;
+	j["selection_labels"] = multi_selection_labels;
+	j["selection_cell_idx"] = multi_selection_cell_idx;
+	j["multi_selection_grid_bitfield"] = multi_selection_grid_bitfield;
 
-	j["growing_level"] = m_growing_level;
-	j["region_growing"] = m_region_growing.to_json();
+	j["growing_level"] = multi_growing_level;
+	j["region_growing"] = multi_region_growing.to_json();
 
 	j["selection_mesh"] = selection_mesh;
 	j["proxy_cage"] = proxy_cage;

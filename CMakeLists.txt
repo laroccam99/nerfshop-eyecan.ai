@@ -365,11 +365,13 @@ set(SOURCES
 	src/editing/tools/default_mm_operations.cu
 	src/editing/tools/fast_quadric.cu
 	src/editing/tools/growing_selection.cu
+	src/editing/tools/growing_selection_multi.cu
 	src/editing/tools/progressive_hulls.cu
 	src/editing/tools/visualization_utils.cu
 	src/editing/tools/selection_utils.cu
 	src/editing/tools/sh_utils.cu
 	src/editing/tools/region_growing.cu
+	src/editing/tools/region_growing_multi.cu
 	src/editing/datastructures/cage.cu
 	src/editing/datastructures/mesh.cu
 	src/editing/datastructures/tet_mesh.cu
