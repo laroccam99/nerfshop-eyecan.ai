@@ -67,7 +67,8 @@ private:
     const uint32_t m_max_cascade;
     uint32_t m_growing_level;
     bool equidistant_points_flag = true;
-    const int min_ed_points_threshold = 4;                   //soglia minima di punti equidistanti da ottenere
+    const int min_ed_points_threshold = 6;                   //soglia minima di punti equidistanti da ottenere
+    const int max_ed_points_limit = 6;
 
     // Const data from the NeRF model
     const tcnn::GPUMemory<float>& m_density_grid; // NERF_GRIDSIZE()^3 grid of EMA smoothed densities from the network

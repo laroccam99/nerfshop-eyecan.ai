@@ -148,7 +148,8 @@ void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode regi
         //ma bisognerebbe anche sistemare m_selection_cell_idx e m_selection_grid_bitfield
         
         if (equidistant_points_flag){               //Check per attivare o no la modalità punti superficiali equidistanti 
-            equidistant_points(min_ed_points_threshold);
+            int interval = 50;
+            equidistant_points(min_ed_points_threshold, interval);
         } 
 
     }
@@ -208,15 +209,13 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
     //hello_world helloObj;
     //std::string stringaHello = helloObj.getPrivateString();   
     selection_map selection_mapObj;
-    std::map<std::size_t, Eigen::Vector3f> selection_points_map = selection_mapObj.getPrivateMap();
 
-    for (int i = 0; i < m_selection_points.size(); i++) {
+    for (int i = 0; i < m_selection_points.size() && m_temp_points.size() < max_ed_points_limit; i++) {
         if ((count % interval == 0) && (not_zero_coordinate(m_selection_points[i]))) {
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
             // Genera un ID basato sulle coordinate numeriche nel Vector3f e salva l'ID e la coordinata nella struttura dati
-            id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());
-            //selection_points_map.insert(std::make_pair(id, m_selection_cell_idx[i]));     
+            id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());    
             selection_mapObj.updatePrivateMap(id, m_selection_points[i]);        
             //vstd::cout << "Growing point added: "<< i << " with id: " << id << std::endl;
         }
@@ -230,41 +229,46 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
 }  
 
 //Seleziona in modo uniforme solo alcuni punti superficiali distanti; intervallo scelto dall'utente; continua finchè non supera la soglia minima
-void RegionGrowing::equidistant_points(int e, int interval) {
+void RegionGrowing::equidistant_points(int min_ed_points_threshold, int interval) {
     std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
     //Vettori temporanei 
     std::vector<Eigen::Vector3f> m_temp_points;
     std::vector<uint32_t> m_temp_idx;
     int count = 0;                                                                              //counter per scorrere l'array
 
-    for (int i = 0; i < m_selection_points.size(); i++) {
+    std::hash<float> hashFunction;
+    std::size_t id;
+    selection_map selection_mapObj;
+
+    for (int i = 0; i < m_selection_points.size() && m_temp_points.size() < max_ed_points_limit; i++) {
         if (count % interval == 0) {
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
+            id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());    
+            selection_mapObj.updatePrivateMap(id, m_selection_points[i]);
             //std::cout << "Growing point added A: "<< i << std::endl;
         }
         count++;
     }
-
-    std::hash<float> hashFunction;
-    std::size_t id;
+  
     int interval2 = 0;
-    int remaining_ud_points = e - m_temp_points.size();
+    int remaining_ud_points = min_ed_points_threshold - m_temp_points.size();
     if ( remaining_ud_points > 0) {
         interval2 = static_cast<int>(m_selection_points.size() / remaining_ud_points);
         if (interval == 0){
             std::cout << "RegionGrowing::equidistant_points() failed: Not enough superficial points selected. Try with a higher growing level."<< std::endl;
             return;
         }
-        for (int i = 0; i < m_selection_points.size() && remaining_ud_points > 0; i++) {
+        for (int i = 0; i < m_selection_points.size() && remaining_ud_points > 0 && m_temp_points.size() < max_ed_points_limit; i++) {
             if (count % interval2 == 0) {
                 auto it = std::find(m_temp_points.begin(), m_temp_points.end(), m_selection_points[i]); //restituisce puntatore a ultimo elemento, se non trova l'oggetto
                 if (it == m_temp_points.end()) {                            //se l'oggetto non è presente, viene aggiunto 
                     m_temp_points.push_back(m_selection_points[i]);
                     m_temp_idx.push_back(m_selection_cell_idx[i]);
+                    //INSERIMENTO NELLA MAPPA NON TESTATO###########
                     // Genera un ID basato sulle coordinate numeriche nel Vector3f e salva l'ID e la coordinata nella struttura dati
-                    id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());
-//                    RegionGrowing::m_selection_points_map.insert(std::make_pair(id, m_selection_cell_idx[i]));
+                    id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());    
+                    selection_mapObj.updatePrivateMap(id, m_selection_points[i]); 
                     remaining_ud_points--;
                     //std::cout << "Growing point added B: "<< i << std::endl;
                 }
