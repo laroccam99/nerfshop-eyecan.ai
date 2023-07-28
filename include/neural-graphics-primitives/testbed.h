@@ -213,7 +213,11 @@ public:
 		void clear() {
 			m_scratch_alloc = {};
 		}
-		
+//forse inutile, da rimuovere
+		void set_apply_all_edits(bool boolean){
+			apply_all_edits = boolean;
+		}
+
 		int m_n_debug_operators = 10;
 
 		bool m_poisson_target = true;
@@ -236,7 +240,7 @@ public:
 		tcnn::GPUMemoryArena::Allocation m_scratch_alloc;
 		std::vector<std::shared_ptr<EditOperator>> m_edit_operators;
 		int m_active_edit_operator = -1;
-		
+		bool apply_all_edits = false;
 	};
 
 	class FiniteDifferenceNormalsApproximator {

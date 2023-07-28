@@ -1081,7 +1081,7 @@ void Testbed::imgui() {
 
 			ImGui::Separator();
 			ImGui::Text("Add operator");
-
+//SECONDO ME VIENE CREATO QUI IL SINGOLO GROWING_SELECTION, MA IO NE VORREI CREARE TANTI
 			if (ImGui::Button("Cage")) {
 				auto cage_deformation = std::make_shared<CageDeformation>(
 					m_aabb,
@@ -1096,6 +1096,7 @@ void Testbed::imgui() {
 					get_filename_in_data_path_with_suffix(m_data_path, "envmap", ".png"),
 					m_nerf.max_cascade
 					);
+//COME POTREI CREARE + CageDeformation SENZA AGGIUNGERE MOLTI OPERATORI					
 				m_nerf.tracer.add_edit_operator(cage_deformation);
 			}
 
@@ -1167,7 +1168,15 @@ void Testbed::imgui() {
 				update_density_grid_nerf_render(10, false, m_training_stream);
 				reset_accumulation();
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("Apply all edits")) {
+				m_nerf.tracer.set_apply_all_edits(true);
+				//dovrebbe rendere true tutti i bool apply_all_edits di tutti i growingselections di tutti gli operatori
 
+				//	SCORRERE TUTTI GLI EDIT OPERATOR
+				// PER OGNUNO, ACCEDERE ALLA VARIABILE D'ISTANZA GROWING_SELECTION 
+				//	IMPOSTARE APPLY_ALL EDITS_FLAG COME TRUE  
+			}
 			ImGui::Separator();
 
 			//if (ImGui::Button("Add Twist Operator")) {

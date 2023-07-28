@@ -150,6 +150,13 @@ void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode regi
         if (equidistant_points_flag){               //Check per attivare o no la modalità punti superficiali equidistanti 
             int interval = 50;
             equidistant_points(min_ed_points_threshold, interval);
+        //PROBABILMENTE INUTILE, VA RIMOSSO    
+            selection_map selection_mapObj;
+            std::map<std::size_t, Eigen::Vector3f> selection_points_map = selection_mapObj.getPrivateMap();
+            for (const auto& pair : selection_points_map) {
+                
+            }
+            
         } 
 
     }

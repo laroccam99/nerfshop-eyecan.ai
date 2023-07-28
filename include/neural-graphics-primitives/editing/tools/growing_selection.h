@@ -192,6 +192,10 @@ struct GrowingSelection {
 
 	void set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices);
 
+    void set_apply_edit_flag(bool value){
+        apply_all_deformations_flag = value;
+        std::cout << "Deformation enabled! " << value << std::endl;
+        }
 private:
 
     // Selection specifics
@@ -281,6 +285,8 @@ private:
 
     // Automatically update the tet when a manipulation is performed
     bool m_update_tet_manipulation = true;
+    bool do_it_once = false;        //con un do-while si potrebbe evitare questa variabile
+    bool apply_all_deformations_flag = false;
 
     std::vector<Eigen::Vector3f> m_debug_points;
     std::vector<Eigen::Vector3f> m_debug_colors;
@@ -350,18 +356,12 @@ private:
 
     // Decimate fine mesh with linear bounding constraint
     void compute_proxy_mesh();
-
-    // Decimate all fine meshes  
-    void compute_all_proxy_mesh();
     
     // Not used in practice
     void fix_fine_mesh();
 
     // Fix proxy mesh with MeshFix
     void fix_proxy_mesh();
-
-    // Fix all proxy meshes with MeshFix
-    void big_fix_proxy_mesh();
 
     // DEBUG: export the proxy mesh as a file
     void export_proxy_mesh();
