@@ -192,10 +192,19 @@ struct GrowingSelection {
 
 	void set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices);
 
-    void set_apply_edit_flag(bool value){
-        apply_all_deformations_flag = value;
-        std::cout << "Deformation enabled! " << value << std::endl;
-        }
+ /*   void update_num_of_iterations(){
+        num_of_iterations ++;
+    }*/ 
+
+    void set_apply_all_edits_flag(bool value){
+        apply_all_edits_flag = value;
+        std::cout << "Single Operator Deformation enabled! " << (value ? "true" : "false") << std::endl;
+    }
+
+    bool get_apply_all_edits_flag(){
+        return apply_all_edits_flag;
+    }
+
 private:
 
     // Selection specifics
@@ -286,7 +295,7 @@ private:
     // Automatically update the tet when a manipulation is performed
     bool m_update_tet_manipulation = true;
     bool do_it_once = false;        //con un do-while si potrebbe evitare questa variabile
-    bool apply_all_deformations_flag = false;
+    bool apply_all_edits_flag = false;
 
     std::vector<Eigen::Vector3f> m_debug_points;
     std::vector<Eigen::Vector3f> m_debug_colors;

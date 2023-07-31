@@ -1081,8 +1081,8 @@ void Testbed::imgui() {
 
 			ImGui::Separator();
 			ImGui::Text("Add operator");
-//SECONDO ME VIENE CREATO QUI IL SINGOLO GROWING_SELECTION, MA IO NE VORREI CREARE TANTI
 			if (ImGui::Button("Cage")) {
+				for (int i=0; i<2; i++) {
 				auto cage_deformation = std::make_shared<CageDeformation>(
 					m_aabb,
 					m_training_stream,
@@ -1096,8 +1096,8 @@ void Testbed::imgui() {
 					get_filename_in_data_path_with_suffix(m_data_path, "envmap", ".png"),
 					m_nerf.max_cascade
 					);
-//COME POTREI CREARE + CageDeformation SENZA AGGIUNGERE MOLTI OPERATORI					
 				m_nerf.tracer.add_edit_operator(cage_deformation);
+				}
 			}
 
 			ImGui::SameLine();
@@ -1116,7 +1116,6 @@ void Testbed::imgui() {
 					get_filename_in_data_path_with_suffix(m_data_path, "envmap", ".png"),
 					m_nerf.max_cascade
 					);
-
 
 				std::vector<point_t> cube_points =
 				{
@@ -1169,13 +1168,10 @@ void Testbed::imgui() {
 				reset_accumulation();
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Apply all edits")) {
-				m_nerf.tracer.set_apply_all_edits(true);
-				//dovrebbe rendere true tutti i bool apply_all_edits di tutti i growingselections di tutti gli operatori
-
-				//	SCORRERE TUTTI GLI EDIT OPERATOR
-				// PER OGNUNO, ACCEDERE ALLA VARIABILE D'ISTANZA GROWING_SELECTION 
-				//	IMPOSTARE APPLY_ALL EDITS_FLAG COME TRUE  
+			if (ImGui::Button("Apply edits")) {
+				//Rende true tutti i bool apply_all_edits_flag di tutti i growingselections di tutti gli operatori
+				std::cout << "################################################ Button Apply all edits Cliccato" << std::endl;
+				m_nerf.tracer.apply_all_op_edits(true);  
 			}
 			ImGui::Separator();
 
@@ -1192,38 +1188,6 @@ void Testbed::imgui() {
 			if (m_nerf.tracer.edit_operators().size() > 0 && imgui_colored_button("Remove All", 0.0)) {
 				m_nerf.tracer.reset_edit_operators();
 			}
-
-			// Edits load/save pipeline
-			 //static char edits_filename_buf[128] = "";
-			 //if (edits_filename_buf[0] == '\0') {
-			 //	snprintf(edits_filename_buf, sizeof(edits_filename_buf), "%s", get_filename_in_data_path_with_suffix(m_data_path, "edits", ".json").c_str());
-			 //}
-
-			 //if (ImGui::Button("Save")) {
-			 //	save_edits(edits_filename_buf);
-			 //}
-			 //ImGui::SameLine();
-			 //static std::string edits_load_error_string = "";
-			 //if (ImGui::Button("Load")) {
-			 //	try {
-			 //		load_edits(edits_filename_buf);
-			 //	} catch (std::exception& e) {
-			 //		ImGui::OpenPopup("Edits load error");
-			 //		edits_load_error_string = std::string{"Failed to load edits: "} + e.what();
-			 //	}
-			 //	update_density_grid_nerf_render(10, false, m_training_stream);	
-			 //	reset_accumulation();
-			 //}
-			 //ImGui::SameLine();
-			 //if (ImGui::BeginPopupModal("Edits load error", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-			 //	ImGui::Text("%s", edits_load_error_string.c_str());
-			 //	if (ImGui::Button("OK", ImVec2(120, 0))) {
-			 //		ImGui::CloseCurrentPopup();
-			 //	}
-			 //	ImGui::EndPopup();
-			 //}
-			 //ImGui::SameLine();
-			 //ImGui::InputText("File", edits_filename_buf, sizeof(edits_filename_buf));
 
 			if (m_nerf.tracer.edit_operators().size() > 0) {
 
@@ -1287,46 +1251,7 @@ void Testbed::imgui() {
 				m_distill = true;
 				set_train(true);
 			}
-			//ImGui::SliderInt("Batch size", &m_student_trainer_batch_size, 8, 18);
-
-			//if (ImGui::Button("Init student")) {
-			//	m_student_trainer.init_student(m_network_config, m_nerf_network, m_aabb, m_nerf.density_grid, m_nerf.max_cascade, m_nerf.training.dataset.aabb_scale, m_training_stream);
-			//}
-			//ImGui::SameLine();
-			//if (imgui_colored_button(m_train_student ? "Stop training" : "Start training", 0.4)) {
-			//	m_train_student = !m_train_student;
-			//}
-			//ImGui::SameLine();
-			//if (imgui_colored_button(m_render_student ? "Render teacher" : "Render student", 0.4)) {
-			//	m_render_student = !m_render_student;
-			//}
-			//ImGui::SameLine();
-			//if (ImGui::Button("Get Student")) {
-			//	m_network = m_nerf_network = m_student_trainer.student_network();
-			//	m_loss = m_student_trainer.loss();
-			//	m_optimizer = m_student_trainer.optimizer();
-			//	m_trainer = m_student_trainer.trainer();
-			//}
-			//ImGui::Checkbox("Display Debug Student", &m_display_student_debug);
-			//if (m_display_student_debug) {
-			//	ImGui::SameLine();
-			//	ImGui::Checkbox("Teacher samples", &m_display_teacher_samples);
-			//}
-			//ImGui::Checkbox("Smooth samples", &m_student_trainer.use_gaussian_smoothing);
-			//if (m_student_trainer.use_gaussian_smoothing) {
-			//	ImGui::SliderFloat("Sigma smoothing ", &m_student_trainer.sigma_smoothing, 1e-14, 0.1, "%.14f", ImGuiSliderFlags_Logarithmic);
-			//	ImGui::SliderInt("Smoothing samples ", &m_student_trainer.n_gaussian_samples, 1, 100, "%d", ImGuiSliderFlags_Logarithmic);
-			//}
-			//ImGui::SliderFloat("Lambda features ", &m_student_trainer.lambda_features, 0.001, 10.0, "%f", ImGuiSliderFlags_Logarithmic);
-			//ImGui::SliderInt("Trained levels ", &m_student_trainer.n_trained_encoding_levels, 1, m_student_trainer.n_encoding_levels);
-			//ImGui::SliderInt("Rejection samples ", &m_student_trainer.n_rejections, 1, 100, "%d", ImGuiSliderFlags_Logarithmic);
-			//ImGui::Text("Steps: %d, Loss: %0.6f", m_student_trainer.training_step(), m_student_trainer.loss_scalar);
-			//ImGui::Text("Requested batch size: %d,\nSub batch size: %d,\nn sub batches: %d", 1 << m_student_trainer_batch_size, m_student_trainer.sub_batch_size, m_student_trainer.n_sub_batches);
-			//ImGui::PlotLines("loss", m_student_loss_graph, std::min(m_student_loss_graph_samples, 256u), (m_student_loss_graph_samples < 256u) ? 0 : (m_student_loss_graph_samples & 255u), 0, FLT_MAX, FLT_MAX, ImVec2(0, 50.f));
 		}
-		
-/*		ImGui::NextWindowPos(ImVec2(main_viewport->WorkPos.x + main_viewport->WorkSize.x - 350, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver)*/;
-		
 	}
 	ImGui::End();
 

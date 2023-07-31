@@ -171,21 +171,27 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 	bool clear_selection_allowed = m_selected_pixels.size() > 0 || m_selection_cell_idx.size() > 0 || proxy_cage.vertices.size() > 0;
 	if (clear_selection_allowed && imgui_colored_button2("Clear selection", 0.f)) {
 		clear();
+		//set_apply_all_edits_flag(false);						//aggiunto per testing
+		apply_all_edits_flag = false;
+		do_it_once = false;
 	}
 	bool reset_growing_allowed = m_selection_cell_idx.size() > 0;
 	if (reset_growing_allowed) {
 		ImGui::SameLine();
 		if (imgui_colored_button2("Reset growing", 0.1f)) {
 			reset_growing();
-			set_apply_edit_flag(false);						//aggiunto per testing
+			//set_apply_all_edits_flag(false);						//aggiunto per testing
+			apply_all_edits_flag = false;
+			do_it_once = false;
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
 	}
 	//Button per ora utile, ma da rimuovere una volta che sarà funzionante il Button universale per tutti gli operatori
 	ImGui::SameLine();
 	if (m_selection_grid_bitfield.size() > 0) {
-		if (imgui_colored_button2("Apply deform", 0.2f)) {
-			set_apply_edit_flag(true);
+		if (imgui_colored_button2("Apply 1 edit", 0.2f)) {
+			set_apply_all_edits_flag(true);
+			//std::cout << "Single Operator Deformation enabled! " << (apply_all_edits_flag ? "true" : "false") << std::endl;
 		}
 	}
 	if (tet_interpolation_mesh) {
@@ -572,9 +578,9 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 		(ImGuizmo::MODE)m_gizmo_mode, 
 		(float*)&edit_matrix, NULL, NULL)*/
 		) {
-			if (apply_all_deformations_flag == true) {			//Il flag diventa True cliccando sul Button Apply_all_edits
+			if (apply_all_edits_flag == true) {			//Il flag diventa True cliccando sul Button Apply_all_edits
 				edited_guizmo = true;
-				//std::cout << "number_of_edits: " << num_of_iterations << std::endl;
+				std::cout << "number_of_edits: " << num_of_iterations << " to "<< num_of_iterations+1 << std::endl;
 				num_of_iterations++;
 				matrix3_t guizmo_rotation;
 				point_t guizmo_translation;
@@ -891,7 +897,7 @@ void GrowingSelection::delete_selected_growing() {
 
 //Launched by ctrl+scroll wheel
 void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world2proj) {
-	std::cout << "world2proj: " << world2proj << std::endl;			//per testare, da rimuovere
+	//std::cout << "world2proj: " << world2proj << std::endl;			//per testare, da rimuovere
 	if (render_mode == ESelectionRenderMode::Projection) {
 		// Take every projected pixel and reproject it in screen space
 		uint32_t n_selected = 0;
@@ -1000,7 +1006,7 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 
 //Voxel selection with Shift+Mouse Left Click
 void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2proj) {
-	std::cout << "world2proj: " << world2proj << std::endl;				//per testare, da rimuovere
+	//std::cout << "world2proj: " << world2proj << std::endl;				//per testare, da rimuovere
 	if (render_mode == ESelectionRenderMode::Projection) {
 		// Take every projected pixel and reproject it in screen space
 		uint32_t n_selected = 0;

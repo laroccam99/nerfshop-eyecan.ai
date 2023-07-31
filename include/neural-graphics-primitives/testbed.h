@@ -19,6 +19,7 @@
 #include <neural-graphics-primitives/common.h>
 #include <neural-graphics-primitives/discrete_distribution.h>
 #include <neural-graphics-primitives/editing/edit_operator.h>
+#include <neural-graphics-primitives/editing/cage_deformation.h>
 #include <neural-graphics-primitives/marching_cubes.h>
 #include <neural-graphics-primitives/nerf.h>
 #include <neural-graphics-primitives/nerf_loader.h>
@@ -193,6 +194,7 @@ public:
 			m_active_edit_operator = m_edit_operators.size();
 			m_edit_operators.push_back(edit_operator);
 		}
+
 		void delete_edit_operator(int index) {
 			m_edit_operators.erase(m_edit_operators.begin() + index);
 			if (m_active_edit_operator >= index) {
@@ -203,9 +205,11 @@ public:
 			m_edit_operators.clear();
 			m_active_edit_operator = -1;
 		}
+
 		std::vector<std::shared_ptr<EditOperator>>& edit_operators() {
 			return m_edit_operators;
 		}
+
 		int& active_edit_operator() {
 			return m_active_edit_operator;
 		}
@@ -213,10 +217,25 @@ public:
 		void clear() {
 			m_scratch_alloc = {};
 		}
-//forse inutile, da rimuovere
-		void set_apply_all_edits(bool boolean){
-			apply_all_edits = boolean;
+
+		std::vector<std::shared_ptr<EditOperator>> get_edit_operators() {
+			return m_edit_operators;
 		}
+
+		//Modifica il flag per avviare l'edit per tutti gli operatori contemporaneamente
+		void apply_all_op_edits(bool boolean) {
+			std::vector<std::shared_ptr<EditOperator>> operators = this->get_edit_operators();
+			//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "Add operator Cage"
+			for (const auto& edit_operator : operators) {
+				std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(edit_operator);
+				std::cout << "cage_deformation pointer: " << cage_deformation << std::endl;
+				if (cage_deformation) {						//Controllo sul tipo
+					std::cout << "cage_deformation pointer: " << cage_deformation->m_growing_selection.get_apply_all_edits_flag() << std::endl;
+					cage_deformation->m_growing_selection.set_apply_all_edits_flag(true);		//setta true tutti i flag per ogni growing_selection
+				}
+			}
+		}
+
 
 		int m_n_debug_operators = 10;
 
