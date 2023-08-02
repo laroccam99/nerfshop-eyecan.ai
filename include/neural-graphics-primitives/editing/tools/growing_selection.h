@@ -296,6 +296,8 @@ private:
     bool m_update_tet_manipulation = true;
     bool do_it_once = false;                    //con un do-while si potrebbe evitare questa variabile, ma almeno ora è resettabile 
     bool apply_all_edits_flag = false;          //se true, viene attuata la modifica (trasl/rotaz) automatica alla cage
+    const int max_number_of_iterations = 1;     //siccome è specifico di un operatore solo, va fissato a 1
+    int num_of_iterations = 0;                  //counter di modifiche automatiche avviate, di solito va da 0 a 1
 
     std::vector<Eigen::Vector3f> m_debug_points;
     std::vector<Eigen::Vector3f> m_debug_colors;

@@ -35,8 +35,6 @@
 #include <imguizmo/ImGuizmo.h>
 
 NGP_NAMESPACE_BEGIN
-const int max_number_of_iterations = 1;					//siccome è specifico di un operatore solo, va fissato a 1
-extern int num_of_iterations = 0;						//counter di modifiche automatiche avviate, di solito va da 0 a 1
 
 GrowingSelection::GrowingSelection(
         BoundingBox aabb,
@@ -544,27 +542,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 	
 	/* Check if the render mode is one of ProxyMesh, TetMesh, or Off. 
 	If so, use ImGuizmo's Manipulate function to update the edit_matrix based on user input.*/
-	
-	//Necessario imporre un limite di edits, siccome senza il check sulla condizione ImGuizmo::Manipulate, 
-	//l'edit verrebbe svolto infinite volte (questo codice viene avviato in loop)
-
-	//Avvia la modifica automatica solo se si passa dalla funzione select_cage_rect() oppure select_scribbling)()
-	boolean flag = false;
-	if (render_mode == ESelectionRenderMode::ProxyMesh && do_it_once==false) {
-		for (int i = 0; i < proxy_cage.vertices.size(); i++) { 		//sembra ridondante, eppure non funziona togliendo questo for
-			proxy_cage.labels[i] = 1;
-					/*proxy_cage.colors[i] = Eigen::Vector3f(m_brush_color[0], m_brush_color[1], m_brush_color[2]);*/	//inutile, ma fa capire cosa è stato selezionato
-		}
-		Eigen::Matrix<float, 4, 4> screen_selection;			//inizializzata con valori che sembrano comprendere l'intera schermata
-		screen_selection << 1030.0f, 0.0f, -900.0f, 1750.0f,	//Bisognerebbe testare questi valori anche su schermi grandi 4k
-                			15.0f, -1000.0f, -475.0f, 1880.0f,
-                			0.0f, 0.0f, 11.0f, 2.0f,
-                			0.0f, 0.0f, 0.0f, 2.0f;
-		select_cage_rect(screen_selection);						//con select_scribbling non funziona siccome è legato alla posizione del mouse 
-		reset_cage_selection();									//resetto tutto per non lasciare tracce, l'importante è passare per questa parte di codice
-		do_it_once = true;										//il flag si potrebbe evitare con un do-while
-	}
-	if(num_of_iterations < max_number_of_iterations){			//Limitatore di modifiche automatiche (altrimenti va in loop)			
+	if(num_of_iterations < max_number_of_iterations){			//Limitatore di modifiche automatiche (altrimenti va in loop)	
 		if ((render_mode == ESelectionRenderMode::ProxyMesh 	//Modifica avviata solo dopo la costruzione della Cage
 		|| render_mode == ESelectionRenderMode::TetMesh 
 		|| render_mode == ESelectionRenderMode::Off) 
@@ -574,6 +552,21 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 		(ImGuizmo::MODE)m_gizmo_mode, 
 		(float*)&edit_matrix, NULL, NULL)*/
 		) {
+			//Avvia la modifica automatica solo se si passa dalla funzione select_cage_rect() oppure select_scribbling()
+			if (render_mode == ESelectionRenderMode::ProxyMesh && do_it_once==false) {	//CHECK DA SEMPLIFICARE ##############################################
+				for (int i = 0; i < proxy_cage.vertices.size(); i++) { 		//sembra ridondante, eppure non funziona togliendo questo for
+					proxy_cage.labels[i] = 1;
+							/*proxy_cage.colors[i] = Eigen::Vector3f(m_brush_color[0], m_brush_color[1], m_brush_color[2]);*/	//inutile, ma fa capire cosa è stato selezionato
+				}
+				Eigen::Matrix<float, 4, 4> screen_selection;			//inizializzata con valori che sembrano comprendere l'intera schermata
+				screen_selection << 1030.0f, 0.0f, -900.0f, 1750.0f,	//Bisognerebbe testare questi valori anche su schermi grandi 4k
+									15.0f, -1000.0f, -475.0f, 1880.0f,
+									0.0f, 0.0f, 11.0f, 2.0f,
+									0.0f, 0.0f, 0.0f, 2.0f;
+				select_cage_rect(screen_selection);						//con select_scribbling non funziona siccome è legato alla posizione del mouse 
+				reset_cage_selection();									//resetto tutto per non lasciare tracce, l'importante è passare per questa parte di codice
+				do_it_once = true;										//il flag si potrebbe evitare con un do-while
+			}
 			if (apply_all_edits_flag == true) {			//Il flag diventa True cliccando sul Button Apply_all_edits
 				edited_guizmo = true;
 				std::cout << "number_of_edits: " << num_of_iterations << " to "<< num_of_iterations+1 << std::endl;
