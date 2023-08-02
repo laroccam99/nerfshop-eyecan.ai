@@ -35,8 +35,8 @@
 #include <imguizmo/ImGuizmo.h>
 
 NGP_NAMESPACE_BEGIN
-const int max_number_of_iterations = 1;
-extern int num_of_iterations = 0;
+const int max_number_of_iterations = 1;					//siccome è specifico di un operatore solo, va fissato a 1
+extern int num_of_iterations = 0;						//counter di modifiche automatiche avviate, di solito va da 0 a 1
 
 GrowingSelection::GrowingSelection(
         BoundingBox aabb,
@@ -186,12 +186,11 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
 	}
-	//Button per ora utile, ma da rimuovere una volta che sarà funzionante il Button universale per tutti gli operatori
+	//DA RIMUOVERE: Button UTILE SOLO PER TESTING#############################################à
 	ImGui::SameLine();
 	if (m_selection_grid_bitfield.size() > 0) {
 		if (imgui_colored_button2("Apply 1 edit", 0.2f)) {
 			set_apply_all_edits_flag(true);
-			//std::cout << "Single Operator Deformation enabled! " << (apply_all_edits_flag ? "true" : "false") << std::endl;
 		}
 	}
 	if (tet_interpolation_mesh) {
@@ -445,7 +444,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
     
     
     ImGui::Separator();
-    ImGui::Combo("Operator Visualization", (int*)&render_mode, SelectionRenderModeStr);
+    ImGui::Combo("Operator Visualization", (int*)&render_mode, SelectionRenderModeStr);			//da controllare
     // if (render_mode == ESelectionRenderMode::TetMesh) {
     //     ImGui::Combo("TetMeshRenderMode", (int*)&(tet_interpolation_mesh->render_mode), TetMeshRenderModeStr);
     // } else if (render_mode == ESelectionRenderMode::ProxyMesh) {
@@ -538,26 +537,23 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 */
 	}
 
-	//Create an  edit_matrix to store the transformation matrix for the selected vertices.
+	//Create an edit_matrix to store the transformation matrix for the selected vertices.
     Eigen::Matrix4f edit_matrix;
 	//point_t guizmo_scale = point_t(1.0f, 1.0f, 1.0f);
 	compose_imguizmo_matrix<matrix3_t, point_t, float_t>(edit_matrix, cage_edition.selection_rotation, cage_edition.selection_barycenter, cage_edition.selection_scaling);
 	
-	/* Check if there are selected vertices and the render mode is one of ProxyMesh, TetMesh, or Off. 
+	/* Check if the render mode is one of ProxyMesh, TetMesh, or Off. 
 	If so, use ImGuizmo's Manipulate function to update the edit_matrix based on user input.*/
 	
 	//Necessario imporre un limite di edits, siccome senza il check sulla condizione ImGuizmo::Manipulate, 
 	//l'edit verrebbe svolto infinite volte (questo codice viene avviato in loop)
 
-	
 	//Avvia la modifica automatica solo se si passa dalla funzione select_cage_rect() oppure select_scribbling)()
 	boolean flag = false;
 	if (render_mode == ESelectionRenderMode::ProxyMesh && do_it_once==false) {
 		for (int i = 0; i < proxy_cage.vertices.size(); i++) { 		//sembra ridondante, eppure non funziona togliendo questo for
 			proxy_cage.labels[i] = 1;
-			/*proxy_cage.colors[i] = Eigen::Vector3f(m_brush_color[0], 
-													m_brush_color[1], 
-													m_brush_color[2]);*/	//inutile, ma fa capire cosa è stato selezionato
+					/*proxy_cage.colors[i] = Eigen::Vector3f(m_brush_color[0], m_brush_color[1], m_brush_color[2]);*/	//inutile, ma fa capire cosa è stato selezionato
 		}
 		Eigen::Matrix<float, 4, 4> screen_selection;			//inizializzata con valori che sembrano comprendere l'intera schermata
 		screen_selection << 1030.0f, 0.0f, -900.0f, 1750.0f,	//Bisognerebbe testare questi valori anche su schermi grandi 4k
@@ -568,11 +564,11 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 		reset_cage_selection();									//resetto tutto per non lasciare tracce, l'importante è passare per questa parte di codice
 		do_it_once = true;										//il flag si potrebbe evitare con un do-while
 	}
-	if(num_of_iterations < max_number_of_iterations){					
-		if ((render_mode == ESelectionRenderMode::ProxyMesh 
+	if(num_of_iterations < max_number_of_iterations){			//Limitatore di modifiche automatiche (altrimenti va in loop)			
+		if ((render_mode == ESelectionRenderMode::ProxyMesh 	//Modifica avviata solo dopo la costruzione della Cage
 		|| render_mode == ESelectionRenderMode::TetMesh 
 		|| render_mode == ESelectionRenderMode::Off) 
-/*		&&  ImGuizmo::Manipulate((const float*)&world2view, 
+/*		&&  ImGuizmo::Manipulate((const float*)&world2view, 	//fa apparire l'interfaccia di ImGuizmo per manipolare manualmente la deformazione
 		(const float*)&view2proj_guizmo, 
 		(ImGuizmo::OPERATION)m_gizmo_op, 
 		(ImGuizmo::MODE)m_gizmo_mode, 
@@ -604,7 +600,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				guizmo_rotation << rotation * cage_edition.selection_rotation;				//Per rendere il valore Guizmo rotation coerente con la rotazione imposta
 				std::cout << "Final rotation matrix: " << rotation << std::endl;  
 		*/
-				translation << 0.000f, 0.1f, 0.000f; 										//modifica al vettore spostamento
+				translation << 0.000f, 0.2f, 0.000f; 										//modifica al vettore spostamento (modifica arbitraria, verso l'alto)
 				guizmo_translation << translation + cage_edition.selection_barycenter; 		//Rende il punto iniziale Guizmo coerente con lo spostamento, per la prossima modifica
 		//		std::cout << "Final Translation vector: " << translation << std::endl;  
 

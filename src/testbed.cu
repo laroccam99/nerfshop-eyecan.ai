@@ -1198,6 +1198,7 @@ void Testbed::imgui() {
 				// ImGui::Text("Active Operator");
 				// if (m_nerf.tracer.active_edit_operator() >= 0 && m_nerf.tracer.edit_operators().size() > 0)
 				if (m_nerf.tracer.edit_operators().size() > 0)
+					//Parametri: nome, contenuto, minimo, massimo
 					ImGui::SliderInt("Active Operator", &(m_nerf.tracer.active_edit_operator()), -1, m_nerf.tracer.edit_operators().size() - 1);
 				bool imgui_edit = false;
 				for (int i = 0; i < m_nerf.tracer.edit_operators().size(); i++) {

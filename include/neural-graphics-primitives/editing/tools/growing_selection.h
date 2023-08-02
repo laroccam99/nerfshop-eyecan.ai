@@ -258,7 +258,7 @@ private:
     std::vector<uint8_t> m_selection_grid_bitfield;
 
     // Region-growing
-    int m_growing_steps = 10000;
+    int m_growing_steps = 8000;
     int m_growing_level = 0;
     float m_density_threshold = 0.01f;
     ERegionGrowingMode m_region_growing_mode = ERegionGrowingMode::Manual;
@@ -294,8 +294,8 @@ private:
 
     // Automatically update the tet when a manipulation is performed
     bool m_update_tet_manipulation = true;
-    bool do_it_once = false;        //con un do-while si potrebbe evitare questa variabile
-    bool apply_all_edits_flag = false;
+    bool do_it_once = false;                    //con un do-while si potrebbe evitare questa variabile, ma almeno ora è resettabile 
+    bool apply_all_edits_flag = false;          //se true, viene attuata la modifica (trasl/rotaz) automatica alla cage
 
     std::vector<Eigen::Vector3f> m_debug_points;
     std::vector<Eigen::Vector3f> m_debug_colors;
