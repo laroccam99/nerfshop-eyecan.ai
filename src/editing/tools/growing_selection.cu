@@ -129,7 +129,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			grow_region();
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
-	}
+	}	
 
 	bool proxy_allowed = true;// m_selection_points.size() > 0;
 	if (proxy_allowed) {
@@ -569,7 +569,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 			}
 			if (apply_all_edits_flag == true) {			//Il flag diventa True cliccando sul Button Apply_all_edits
 				edited_guizmo = true;
-				std::cout << "number_of_edits: " << num_of_iterations << " to "<< num_of_iterations+1 << std::endl;
+				std::cout << "Number of edits of current Operator: " << num_of_iterations << " to "<< num_of_iterations+1 << std::endl;
 				num_of_iterations++;
 				matrix3_t guizmo_rotation;
 				point_t guizmo_translation;
@@ -650,6 +650,8 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 						update_tet_mesh();
 					}
 				}
+
+				//SI POTREBBE ATTIVARE UN FLAG QUI PER SWITCHARE OPERATORE DA testbed.cu
 			}
 		}
 	}

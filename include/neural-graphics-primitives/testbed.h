@@ -214,6 +214,10 @@ public:
 			return m_active_edit_operator;
 		}
 
+		void set_active_edit_operator(int value) {
+			m_active_edit_operator = value;
+		}
+
 		void clear() {
 			m_scratch_alloc = {};
 		}
@@ -221,27 +225,6 @@ public:
 		std::vector<std::shared_ptr<EditOperator>> get_edit_operators() {
 			return m_edit_operators;
 		}
-
-		//Modifica il flag per avviare l'edit per tutti gli operatori contemporaneamente
-		void apply_all_op_edits(bool boolean) {
-			std::vector<std::shared_ptr<EditOperator>> operators = this->get_edit_operators();
-			std::cout << "operators: " << operators.size() << std::endl;
-			//m_active_edit_operator = get_edit_operators().size()-1;
-			std::cout << "m_active_edit_operator: " << m_active_edit_operator << std::endl;
-
-			//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "Add operator Cage"
-			for (const auto& edit_operator : operators) {
-				std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(edit_operator);
-				std::cout << "cage_deformation pointer: " << cage_deformation << std::endl;
-				if (cage_deformation) {						//Controllo sul tipo
-					std::cout << "cage_deformation pointer: " << cage_deformation->m_growing_selection.get_apply_all_edits_flag() << std::endl;
-					cage_deformation->m_growing_selection.set_apply_all_edits_flag(true);		//setta true tutti i flag per ogni growing_selection
-					//m_active_edit_operator --;
-					std::cout << "m_active_edit_operator decreased to: " << m_active_edit_operator << std::endl;
-				}
-			}
-		}
-
 
 		int m_n_debug_operators = 10;
 

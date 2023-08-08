@@ -179,10 +179,8 @@ json Testbed::load_network_config(const fs::path& network_config_path) {
 		result = json::parse(f, nullptr, true, true);
 		result = merge_parent_network_config(result, network_config_path);
 	}
-
 	return result;
 }
-
 
 void Testbed::reload_network_from_file(const std::string& network_config_path_string) {
 	if (!network_config_path_string.empty()) {
@@ -194,7 +192,6 @@ void Testbed::reload_network_from_file(const std::string& network_config_path_st
 			// appropriate config when switching modes.
 			m_network_config_path = network_config_path_string;
 		//}
-
 	}
 
 	m_network_config = load_network_config(m_network_config_path);
@@ -1168,10 +1165,35 @@ void Testbed::imgui() {
 				reset_accumulation();
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Apply edits")) {
-				//Rende true tutti i bool apply_all_edits_flag di tutti i growingselections di tutti gli operatori
+			if (ImGui::Button("Apply edits")) {		
+				//Rende true tutti i bool apply_all_edits_flag di tutti i growingselections di tutti gli operatori che hanno una cage
 				std::cout << "################################################ Button Apply all edits Cliccato" << std::endl;
-				m_nerf.tracer.apply_all_op_edits(true);  
+
+				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+				std::cout << "Number of operators: " << operators.size() << std::endl;
+
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "Add operator Cage"
+				for (const auto& edit_operator : operators) {
+					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(edit_operator);
+					
+					if (cage_deformation) {						//Controllo sul tipo
+						std::cout << "cage_deformation " << cage_deformation << "flag: " << cage_deformation->m_growing_selection.get_apply_all_edits_flag() << std::endl;
+						cage_deformation->m_growing_selection.set_apply_all_edits_flag(true);		//setta true ???...solo se già esiste una cage per quell'operatore
+					}
+				}
+
+				//Switcha tra tutti gli operatori attivi in modo da applicare le modifiche a tutti
+				m_nerf.tracer.set_active_edit_operator(m_nerf.tracer.get_edit_operators().size()-1);	//mostra l'ultimo operatore
+				std::cout << "active_edit_operator START: " << m_nerf.tracer.active_edit_operator() << std::endl;
+				
+				while (m_nerf.tracer.active_edit_operator() !=0) { 													//NON FUNZIONA, NON APPLICA LE MODIFICHE
+				m_nerf.tracer.set_active_edit_operator(m_nerf.tracer.active_edit_operator()-1);
+				std::cout << "active_edit_operator decreased to: " << m_nerf.tracer.active_edit_operator() << std::endl;
+				}
+
+				m_nerf.tracer.set_active_edit_operator(m_nerf.tracer.get_edit_operators().size()-1);	//mostra l'ultimo operatore
+				std::cout << "active_edit_operator reset to MAX " << std::endl;
+				
 			}
 			ImGui::Separator();
 
@@ -1190,20 +1212,23 @@ void Testbed::imgui() {
 			}
 
 			if (m_nerf.tracer.edit_operators().size() > 0) {
-
+				//Calculate the resolution, focal length, and screen center based on the window resolution, field of view, and zoom level
 				Eigen::Vector2i resolution = m_window_res;
 				Vector2f focal_length = calc_focal_length(resolution, m_fov_axis, m_zoom);
 				Vector2f screen_center = render_screen_center();
 
 				// ImGui::Text("Active Operator");
 				// if (m_nerf.tracer.active_edit_operator() >= 0 && m_nerf.tracer.edit_operators().size() > 0)
+
+				// If there are edit operators, it creates a slider for selecting the active operator
 				if (m_nerf.tracer.edit_operators().size() > 0)
 					//Parametri: nome, contenuto, minimo, massimo
 					ImGui::SliderInt("Active Operator", &(m_nerf.tracer.active_edit_operator()), -1, m_nerf.tracer.edit_operators().size() - 1);
 				bool imgui_edit = false;
-				for (int i = 0; i < m_nerf.tracer.edit_operators().size(); i++) {
+
+				for (int i = 0; i < m_nerf.tracer.edit_operators().size(); i++) {					//It iterates through all the edit operators
 					auto edit_operator = m_nerf.tracer.edit_operators()[i];
-					if (i == m_nerf.tracer.active_edit_operator()) {
+					if (i == m_nerf.tracer.active_edit_operator()) {			//It sets the style color for the operator based on whether it is the active operator or not
 						ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.26f, 0.59f, 0.25f, 0.31f));
 					} else {
 						ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.00f));
@@ -1211,34 +1236,36 @@ void Testbed::imgui() {
 					bool delete_operator = false;
 
 					// Create a new stack ID to support buttons with the same name!
-					ImGui::PushID(i);
-					ImGui::SetNextItemOpen(i == m_nerf.tracer.active_edit_operator());
+					ImGui::PushID(i);											//Push unique ID for the operator to support buttons with the same name
+					ImGui::SetNextItemOpen(i == m_nerf.tracer.active_edit_operator());	//Calls the "imgui" function of the edit operator
 					imgui_edit |= edit_operator->imgui(delete_operator, resolution, focal_length, m_smoothed_camera, screen_center, m_auto_clean);
 					// if (i == m_nerf.tracer.active_edit_operator()) {
 					// 	ImGui::PopStyleColor();
 						
 					// }
-					ImGui::PopStyleColor();
-					// Enable drag and drop reordering of operators
-					if (ImGui::IsItemActive() && !ImGui::IsItemHovered())
+					ImGui::PopStyleColor();										//Pops the style color
+					if (ImGui::IsItemActive() && !ImGui::IsItemHovered())		//Enable drag and drop reordering of operators
 					{
-						int i_next = i + (ImGui::GetMouseDragDelta(0).y < 0.f ? -1 : 1);
-						if (i_next >= 0 && i_next < m_nerf.tracer.edit_operators().size())
-						{
+						int i_next = i + (ImGui::GetMouseDragDelta(0).y < 0.f ? -1 : 1);	//index of the next operator based on the mouse drag delta
+						std::cout << "i: " << i << std::endl;
+						std::cout << "ImGui::GetMouseDragDelta: " << (ImGui::GetMouseDragDelta(0).y < 0.f ? -1 : 1) << std::endl;
+						std::cout << "i_next: " << i_next << std::endl;
+
+						if (i_next >= 0 && i_next < m_nerf.tracer.edit_operators().size()){
 							m_nerf.tracer.edit_operators()[i] = m_nerf.tracer.edit_operators()[i_next];
 							m_nerf.tracer.edit_operators()[i_next] = edit_operator;
 							if (m_nerf.tracer.active_edit_operator() == i || m_nerf.tracer.active_edit_operator() == i_next) {
-								m_nerf.tracer.active_edit_operator() = (m_nerf.tracer.active_edit_operator() == i) ? i_next : i;
+								m_nerf.tracer.active_edit_operator() = (m_nerf.tracer.active_edit_operator() == i) ? i_next : i;	//Inversione ordine operatori
 							}
 							ImGui::ResetMouseDragDelta();
 						}
 					}
 					ImGui::PopID();
-					if (delete_operator) {
+					if (delete_operator) {										//If the operator is flagged for deletion, deletes the operator from the tracer
 						m_nerf.tracer.delete_edit_operator(i);
 					}
 				}
-				if (imgui_edit) {
+				if (imgui_edit) {	// If any changes were made to the edit operators in the ImGui interface, updates  density grid and resets the accumulation
 					update_density_grid_nerf_render(50, false, m_training_stream);
 					reset_accumulation();
 				}

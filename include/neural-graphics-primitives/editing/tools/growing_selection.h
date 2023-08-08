@@ -192,13 +192,14 @@ struct GrowingSelection {
 
 	void set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices);
 
- /*   void update_num_of_iterations(){
-        num_of_iterations ++;
-    }*/ 
-
     void set_apply_all_edits_flag(bool value){
-        apply_all_edits_flag = value;
-        std::cout << "Single Operator Deformation enabled! " << (value ? "true" : "false") << std::endl;
+        if (value == true) {            //AGGIUNGERE CHECK CHE CONTROLLA ESISTENZA DELLA CAGE
+            apply_all_edits_flag = true;
+            std::cout << "Current Operator: Deformation enabled ? " << (value ? "true" : "false") << std::endl;
+        }else {
+            apply_all_edits_flag = false;
+            std::cout << "Current Operator: Deformation disabled  " << std::endl;
+        }
     }
 
     bool get_apply_all_edits_flag(){
