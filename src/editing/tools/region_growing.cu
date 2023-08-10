@@ -142,45 +142,71 @@ void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode regi
             }
             i++;
         }
+    }
+    // std::cout << "Selected " << m_selection_points.size() << " points overall" << std::endl;
+}
+
+//GUI Button "Grow far", second function
+void RegionGrowing::grow_far(float density_threshold, ERegionGrowingMode region_growing_mode, int growing_level, int growing_steps) {
+    // Make sure we can actually grow!
+    if (m_growing_queue.empty()) {
+        std::cout << "Growing queue is empty!" << std::endl;
+        return;
+    }
+    m_growing_level = growing_level; 
+
+    int i = 1;
+
+    if (region_growing_mode == ERegionGrowingMode::Manual) {
+        while (!m_growing_queue.empty() && i <= growing_steps) {
+            uint32_t current_cell = m_growing_queue.front();
+            float current_density = m_density_grid_host[current_cell];
+            m_growing_queue.pop();
+
+            // Get position (with corresponding level) to fetch neighbours
+            uint32_t level = current_cell / (NERF_GRIDVOLUME());
+            uint32_t pos_idx = current_cell % (NERF_GRIDVOLUME());
+
+            // Sample accepted only if at requested level, statisfying density threshold and not already selected!
+            if (!get_bitfield_at(pos_idx, level, m_selection_grid_bitfield.data()) && current_density >= density_threshold && level == m_growing_level) {
+                
+                // Test whether the new sample touches the boundary, if yes then upscale!
+                if (is_boundary(pos_idx)) {
+                    std::cout << "UPSAMPLING" << std::endl;
+                    upscale_selection(m_growing_level);
+                    // Don´t forget to also upscale the current cell!
+                    current_cell = get_upper_cell_idx(current_cell, m_growing_level);
+                    level = current_cell / (NERF_GRIDVOLUME());
+                    pos_idx = current_cell % (NERF_GRIDVOLUME());
+                }
+
+                // Invert morton coordinates to get xyz
+                uint32_t x = tcnn::morton3D_invert(pos_idx>>0);
+                uint32_t y = tcnn::morton3D_invert(pos_idx>>1);
+                uint32_t z = tcnn::morton3D_invert(pos_idx>>2);
+                // Add possible neighbours
+                add_neighbours(m_growing_queue, x, y, z, level);
+
+                // Mark the current cell
+                Eigen::Vector3f cell_pos = get_cell_pos(x, y, z, level);
+                m_selection_points.push_back(cell_pos);
+                m_selection_cell_idx.push_back(current_cell);
+                set_bitfield_at(pos_idx, level, true, m_selection_grid_bitfield.data());
+                //std::cout << "m_selection_cell_idx: " << current_cell << std::endl;
+            }
+            i++;
+        }
  
         //SI POTREBBE AGGIUNGERE QUI UN CONTROLLO SUI DUPLICATI
 		//aggiungere tutto ad un set e poi assegnare il contenuto a m_selection_points, 
         //ma bisognerebbe anche sistemare m_selection_cell_idx e m_selection_grid_bitfield
         
-        if (equidistant_points_flag){               //Check per attivare o no la modalità punti superficiali equidistanti 
-            int interval = 50;
-            equidistant_points(min_ed_points_threshold, interval);
-        //PROBABILMENTE INUTILE, VA RIMOSSO    
-            selection_map selection_mapObj;
-            std::map<std::size_t, Eigen::Vector3f> selection_points_map = selection_mapObj.getPrivateMap();
-            for (const auto& pair : selection_points_map) {
-                
-            }
-            
-        } 
+        //if (equidistant_points_flag){               //FORSE INUTILE, DA RIMUOVERE Check per attivare o no la modalità punti superficiali equidistanti 
+            //int interval = 50;
+            ////DA FIXARE, NON PRENDE PUNTI DISTANTI IN TERMINI DI COORDINATE##########################################################################################à
+            equidistant_points(min_ed_points_threshold);          
+        //} 
 
-    }
-    // TODO: not supported yet!!!!!!! 
-    else {
-        // // Compute features and test distances for all the cells currently in the queue
-        // std::vector<uint32_t> tentative_cells;
-        // std::vector<NerfCoordinate> tentative_coordinates;
-        // std::vector<FeatureVector> tentative_features;
-        // // Compute the corresponding coordinates
-        // for (int j = 0; j < tentative_cells.size(); j++) {
-
-        // }
-        // while (!growing_queue.empty() && i <= growing_steps) {
-        //     uint32_t current_cell = growing_queue.front();
-        //     float current_density = density_grid_host[current_cell];
-        //     growing_queue.pop();
-        //     // Test for density!
-        //     if (current_density >= density_threshold) {
-
-        //     }
-        //     i++;
-        // }
-        // // Test 
     }
     // std::cout << "Selected " << m_selection_points.size() << " points overall" << std::endl;
 }
@@ -196,6 +222,7 @@ bool not_zero_coordinate(Eigen::Vector3f point_to_check) {
     }
 }
 
+//DA FIXARE, NON PRENDE PUNTI DISTANTI IN TERMINI DI COORDINATE##########################################################################################à
 //Codice aggiunto per selezionare in modo uniforme solo alcuni punti superficiali distanti; si ferma al raggiungimento della soglia minima
 void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
     std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
@@ -212,18 +239,17 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
     }
 
     std::hash<float> hashFunction;
-    std::size_t id;
-    //hello_world helloObj;
-    //std::string stringaHello = helloObj.getPrivateString();   
+    //std::size_t id; 
     selection_map selection_mapObj;
 
     for (int i = 0; i < m_selection_points.size() && m_temp_points.size() < max_ed_points_limit; i++) {
         if ((count % interval == 0) && (not_zero_coordinate(m_selection_points[i]))) {
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
+            //FORSE INUTILE, DA RIMUOVERE
             // Genera un ID basato sulle coordinate numeriche nel Vector3f e salva l'ID e la coordinata nella struttura dati
-            id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());    
-            selection_mapObj.updatePrivateMap(id, m_selection_points[i]);        
+            //id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());    
+            selection_mapObj.add_to_privateMap(m_selection_cell_idx[i], m_selection_points[i]);        
             //vstd::cout << "Growing point added: "<< i << " with id: " << id << std::endl;
         }
         count++;
@@ -235,6 +261,7 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
     std::cout << "POST m_selection_points size: "<< m_selection_points.size() << std::endl;
 }  
 
+//DA FIXARE, NON PRENDE PUNTI DISTANTI IN TERMINI DI COORDINATE##########################################################################################à
 //Seleziona in modo uniforme solo alcuni punti superficiali distanti; intervallo scelto dall'utente; continua finchè non supera la soglia minima
 void RegionGrowing::equidistant_points(int min_ed_points_threshold, int interval) {
     std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
@@ -244,15 +271,15 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold, int interval
     int count = 0;                                                                              //counter per scorrere l'array
 
     std::hash<float> hashFunction;
-    std::size_t id;
+    //std::size_t id;
     selection_map selection_mapObj;
 
     for (int i = 0; i < m_selection_points.size() && m_temp_points.size() < max_ed_points_limit; i++) {
         if (count % interval == 0) {
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
-            id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());    
-            selection_mapObj.updatePrivateMap(id, m_selection_points[i]);
+            //id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());    
+            selection_mapObj.add_to_privateMap(m_selection_cell_idx[i], m_selection_points[i]);
             //std::cout << "Growing point added A: "<< i << std::endl;
         }
         count++;
@@ -274,8 +301,8 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold, int interval
                     m_temp_idx.push_back(m_selection_cell_idx[i]);
                     //INSERIMENTO NELLA MAPPA NON TESTATO###########
                     // Genera un ID basato sulle coordinate numeriche nel Vector3f e salva l'ID e la coordinata nella struttura dati
-                    id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());    
-                    selection_mapObj.updatePrivateMap(id, m_selection_points[i]); 
+                    //id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());    
+                    selection_mapObj.add_to_privateMap(m_selection_cell_idx[i], m_selection_points[i]); 
                     remaining_ud_points--;
                     //std::cout << "Growing point added B: "<< i << std::endl;
                 }

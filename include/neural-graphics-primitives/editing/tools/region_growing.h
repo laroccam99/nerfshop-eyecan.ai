@@ -2,7 +2,6 @@
 
 #include <neural-graphics-primitives/common.h>
 #include <neural-graphics-primitives/json_binding.h>
-#include <neural-graphics-primitives/hello_world.h>
 #include <neural-graphics-primitives/selection_map.h>
 #include <tiny-cuda-nn/common.h>
 #include <tiny-cuda-nn/gpu_matrix.h>
@@ -46,13 +45,31 @@ public:
         return m_selection_grid_bitfield;
     }
 
-    const uint32_t growing_level() const {
+    uint32_t growing_level() const {
         return m_growing_level;
     }
+    //ANCORA NON UTILIZZATI, PER ORA INUTILI----------------------------------
+    int get_min_ed_points_threshold() {
+        return min_ed_points_threshold;
+    }
 
+    void set_min_ed_points_threshold(int value) {
+        min_ed_points_threshold = value;
+    }
+
+    int get_max_ed_points_limit() {
+        return max_ed_points_limit;
+    }
+
+    void set_max_ed_points_limit(int value) {
+        max_ed_points_limit = value;
+    }
+    //----------------------------------------------------------------------
     void upscale_selection(int current_level);
 
     void grow_region(float density_threshold, ERegionGrowingMode region_growing_mode, int growing_level, int growing_steps);
+    //FORSE INUTILE, SI POTREBBE ADATTARE IL grow_region()
+    void grow_far(float density_threshold, ERegionGrowingMode region_growing_mode, int growing_level, int growing_steps);
 
     void equidistant_points(int min_ud_points_threshold);
     
@@ -66,9 +83,9 @@ private:
     // Max cascade as specified with the dataset
     const uint32_t m_max_cascade;
     uint32_t m_growing_level;
-    bool equidistant_points_flag = false;
-    const int min_ed_points_threshold = 30;                   //soglia minima di punti equidistanti da ottenere
-    const int max_ed_points_limit = 30;
+    bool equidistant_points_flag = true;               //inutile, DA RIMUOVERE
+    int min_ed_points_threshold = 2;                   //soglia minima di punti equidistanti da ottenere
+    int max_ed_points_limit = 2;                       //soglia massima di punti eq da ottenere
 
     // Const data from the NeRF model
     const tcnn::GPUMemory<float>& m_density_grid; // NERF_GRIDSIZE()^3 grid of EMA smoothed densities from the network

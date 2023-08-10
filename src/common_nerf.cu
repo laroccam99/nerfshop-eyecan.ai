@@ -122,6 +122,7 @@ __device__ uint32_t cascaded_grid_idx_at(Vector3f pos, uint32_t mip) {
 
 	Vector3i i = (pos * NERF_GRIDSIZE()).cast<int>();
 
+	//Checks if any of the components of the integer vector are outside the range [-1, NERF_GRIDSIZE()]
 	if (i.x() < -1 || i.x() > NERF_GRIDSIZE() || i.y() < -1 || i.y() > NERF_GRIDSIZE() || i.z() < -1 || i.z() > NERF_GRIDSIZE()) {
 		printf("WTF %d %d %d\n", i.x(), i.y(), i.z());
 	}

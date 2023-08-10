@@ -192,6 +192,22 @@ struct GrowingSelection {
 
 	void set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices);
 
+    void set_m_projected_pixels(std::vector<Eigen::Vector3f> projected_pixels) {
+        m_projected_pixels = projected_pixels;
+    }
+
+    std::vector<Eigen::Vector3f> get_m_projected_pixels() {
+        return m_projected_pixels;
+    }
+
+    void add_ppoint_to_op(uint32_t selection_point_idx, Eigen::Vector3f selection_point);
+    
+    void set_render_mode_to_RG() {  //DA FIXARE CON =
+        render_mode == ESelectionRenderMode::RegionGrowing;             //######################################################################################################################################DA FIXARE CON =
+    }//DA FIXARE CON =
+
+    void grow_and_cage();
+
     void set_apply_all_edits_flag(bool value){
         if (value == true) {            //AGGIUNGERE CHECK CHE CONTROLLA ESISTENZA DELLA CAGE
             apply_all_edits_flag = true;
@@ -259,7 +275,8 @@ private:
     std::vector<uint8_t> m_selection_grid_bitfield;
 
     // Region-growing
-    int m_growing_steps = 8000;
+    int m_growing_steps = 2000;                         //utilizzato per il grow_region() normale
+    int m_growing_steps_initial = 25000;                //utilizzato solo per il grow_far()
     int m_growing_level = 0;
     float m_density_threshold = 0.01f;
     ERegionGrowingMode m_region_growing_mode = ERegionGrowingMode::Manual;
@@ -321,7 +338,7 @@ private:
     // ------------------------
     void project_selection_pixels(const std::vector<Eigen::Vector2i>& ray_pixels, const Eigen::Vector2i& resolution, const Eigen::Vector2f& focal_length, const Eigen::Matrix<float, 3, 4>& camera_matrix, const Eigen::Vector2f& screen_center, cudaStream_t stream);
 
-	inline bool is_near_mouse(const ImVec2& p);
+    inline bool is_near_mouse(const ImVec2& p);
 
     inline bool is_inside_rect(const ImVec2& p);
 
@@ -348,6 +365,8 @@ private:
 
     // Grow region (by user-selected steps)
     void grow_region();
+
+    void grow_far();
 
     // ------------------------
     // Morphological Operators

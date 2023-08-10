@@ -125,9 +125,13 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 	bool growing_allowed = m_projected_cell_idx.size() > 0 || m_selection_points.size() > 0;
 	if (growing_allowed) {
 		ImGui::SameLine(); 
-		if(ImGui::Button("GROW_REGION")) {
-			grow_region();
+		if(ImGui::Button("GROW FAR")) {
+			grow_far();
 			render_mode = ESelectionRenderMode::RegionGrowing;
+		}
+		ImGui::SameLine(); //SI POTREBBE CONTROLLARE LA PRESENZA DI UN FLAG PER PASSARE A QUESTA MODALITà
+		if(ImGui::Button("GROW&CAGE")) {
+			grow_and_cage();
 		}
 	}	
 
@@ -156,7 +160,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			{
 				ImGui::SameLine();
 				// Will extract and clean the proxy directly, then compute the tet mesh and extract it as well
-				if (ImGui::Button("C0MPUTE PR0XY")) {
+				if (ImGui::Button("COMPUTE1")) {
 					ImGui::Text("Please wait, computing proxy...");
 					fix_proxy_mesh();
 					update_tet_mesh();
@@ -1100,9 +1104,6 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 	}
 }
 
-//##################### QUESTE FUNZIONI RELATIVE ALLE CAGES, NON DOVRANNO ESSERE PIù UTILIZZATE ###################################
-
-
 //Launched wih compute 
 void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices)
 {
@@ -1132,23 +1133,7 @@ void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<
 //Launched by GrowingSelection::fix_proxy_mesh()
 void GrowingSelection::compute_proxy_mesh() {
 	std::cout << "GrowingSelection::compute_proxy_mesh()" << std::endl;
-	std::cout << "m_selection_points.size(): " << m_selection_points.size() << std::endl;
-
-    selection_map selection_mapObj;
-    std::map<std::size_t, Eigen::Vector3f> selection_points_map = selection_mapObj.getPrivateMap();
-    std::cout << "RegionGrowing::m_selection_points_map.size() " << selection_points_map.size() << std::endl;
-/*
-//Interazione di prova con elementi della mappa
-
-	for (int i=0; i<m_selection_points.size(); i++){
-		//AGGIUNGERE CONTROLLO SUI DUPLICATI
-
-		for (const auto& pair : selection_points_map) {
-			std::size_t key = pair.first;
-			Vector3f value = pair.second;
-		}
-	}
-*/		
+	
 	// If there is no selection mesh, extract it!
 	if (selection_mesh.vertices.size() == 0) {
 		extract_fine_mesh();
@@ -2177,54 +2162,49 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 	
 	// Set to avoid duplicate cell_idx
 	std::set<uint32_t> cell_idx_set;
-	//In generale servirà uno scribbling vasto, prendendo moltissimi punti iniziali (solo in seguito limitati da max_surface_points)
-	//BISOGNA AUTOMATIZZARE QUESTA FASE, permettendo di selezionare pochi punti superficiali randomici e distanti.
-//	int max_surface_points = 2000;			//limite di punti rossi desiderati ottenuti con scribbling
 	//Loop through the rays and update the projected cell indices, projected pixels, projected labels, and the cell index set
 	// Check for rays that did not reach transmittance and discards them if they are outside the requested level
 	// TODO: do something cleaner here...
 	for (int i = 0; i< ray_counter_host; i++) {
-//		if (cell_idx_set.size() < max_surface_points){
-			//Check if the current pixel is within the AABB
-			if (m_aabb.contains(m_projected_pixels_tmp[i])) {
-				//Get the level of the current grid index
-				uint32_t level = grid_indices_host_tmp[i] / NERF_GRIDVOLUME();
+		//Check if the current pixel is within the AABB
+		if (m_aabb.contains(m_projected_pixels_tmp[i])) {
+			//Get the level of the current grid index
+			uint32_t level = grid_indices_host_tmp[i] / NERF_GRIDVOLUME();
 //				std::cout << "Pixel " << i << "is within the AABB" << std::endl;
-				//If the level is greater than the growing level, discard it
-				// NOTE: should not happen with automatic level selection
-				if (level > m_growing_level) {
+			//If the level is greater than the growing level, discard it
+			// NOTE: should not happen with automatic level selection
+			if (level > m_growing_level) {
 //				std::cout << "Level is greater than the growing level: skipped: " << (level > m_growing_level) << std::endl;
-					continue;
-				}
+				continue;
+			}
 
-				//Get the cell index
-				uint32_t cell_idx = grid_indices_host_tmp[i];
-				//If the level is less than the growing level, uplift the cell index
-				if (level < m_growing_level) {
-					cell_idx = get_upper_cell_idx(cell_idx, m_growing_level);
+			//Get the cell index
+			uint32_t cell_idx = grid_indices_host_tmp[i];
+			//If the level is less than the growing level, uplift the cell index
+			if (level < m_growing_level) {
+				cell_idx = get_upper_cell_idx(cell_idx, m_growing_level);
 //					std::cout << "Updated cell_idx: " << std::endl;
 
-				};
-				//Get the level of the updated cell index
-				level = cell_idx / NERF_GRIDVOLUME();
-				//If the cell index is already in the set, discard it
-				if (cell_idx_set.count(cell_idx) > 0) {
+			};
+			//Get the level of the updated cell index
+			level = cell_idx / NERF_GRIDVOLUME();
+			//If the cell index is already in the set, discard it
+			if (cell_idx_set.count(cell_idx) > 0) {
 //					std::cout << "Skipped, already in the set " << std::endl;
-					continue;
-				}
-
-				//printf("Index ray: %u (%u)\n", cell_idx, NERF_GRIDVOLUME());
-
-				//Add the cell index, pixel, and label to their respective vectors
-				m_projected_cell_idx.push_back(cell_idx);
-				m_projected_pixels.push_back(m_projected_pixels_tmp[i]);
-				//m_projected_features.push_back(m_projected_features_tmp[i]);
-				m_projected_labels.push_back(0);
-				//Add the cell index to the set
-				cell_idx_set.insert(cell_idx);
-//				std::cout << "Cell " << i << "added" << std::endl;
+				continue;
 			}
-//		}
+
+			//printf("Index ray: %u (%u)\n", cell_idx, NERF_GRIDVOLUME());
+
+			//Add the cell index, pixel, and label to their respective vectors
+			m_projected_cell_idx.push_back(cell_idx);
+			m_projected_pixels.push_back(m_projected_pixels_tmp[i]);
+			//m_projected_features.push_back(m_projected_features_tmp[i]);
+			m_projected_labels.push_back(0);
+			//Add the cell index to the set
+			cell_idx_set.insert(cell_idx);
+//				std::cout << "Cell " << i << "added" << std::endl;
+		}
 	}
 
 	//Update the n_rays variable based on the size of the m_projected_cell_idx vector
@@ -2241,6 +2221,15 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 
 	// Reset growing if it had already been done
 	reset_growing();
+}
+
+void GrowingSelection::add_ppoint_to_op(uint32_t selection_point_idx, Eigen::Vector3f selection_point) {				//MODIFICARE NOME 
+	m_selection_points.clear();
+	m_selection_points.push_back(selection_point);
+	m_selection_cell_idx.clear();
+	m_selection_cell_idx.push_back(selection_point_idx);
+	std::cout << "m_selection_points: " << m_selection_points.size()  << std::endl;
+	std::cout << "m_selection_cell_idx: " << m_selection_cell_idx.size()  << std::endl;
 }
 
 //Launched by GrowingSelection::project_selection_pixels()
@@ -2280,6 +2269,19 @@ void GrowingSelection::upscale_growing() {
 void GrowingSelection::grow_region() {
 	
 	m_region_growing.grow_region(m_density_threshold, m_region_growing_mode, m_growing_level, m_growing_steps);
+
+	m_selection_grid_bitfield = m_region_growing.selection_grid_bitfield();
+	m_selection_points = m_region_growing.selection_points();
+	m_selection_cell_idx = m_region_growing.selection_cell_idx();
+	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
+	m_growing_level = m_region_growing.growing_level();
+
+	m_performed_closing = false;
+}
+
+void GrowingSelection::grow_far() {
+	
+	m_region_growing.grow_far(m_density_threshold, m_region_growing_mode, m_growing_level, m_growing_steps_initial);
 
 	m_selection_grid_bitfield = m_region_growing.selection_grid_bitfield();
 	m_selection_points = m_region_growing.selection_points();
@@ -2681,6 +2683,16 @@ void GrowingSelection::generate_poisson_cube_map() {
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, DEBUG_CUBEMAP_WIDTH, DEBUG_CUBEMAP_WIDTH, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_image);
 	
 	}	
+}
+
+void GrowingSelection::grow_and_cage() {
+	grow_region();
+	render_mode = ESelectionRenderMode::RegionGrowing;
+	if (m_selection_grid_bitfield.size() > 0){
+			fix_proxy_mesh();
+			update_tet_mesh();
+			interpolate_poisson_boundary();
+	}
 }
 
 void GrowingSelection::to_json(nlohmann::json& j) {
