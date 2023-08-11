@@ -2223,7 +2223,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 	reset_growing();
 }
 
-void GrowingSelection::add_ppoint_to_op(uint32_t selection_point_idx, Eigen::Vector3f selection_point) {				//MODIFICARE NOME 
+void GrowingSelection::add_ppoint_to_op(uint32_t selection_point_idx, Eigen::Vector3f selection_point) {			
 	m_selection_points.clear();
 	m_selection_points.push_back(selection_point);
 	m_selection_cell_idx.clear();
@@ -2688,6 +2688,7 @@ void GrowingSelection::generate_poisson_cube_map() {
 void GrowingSelection::grow_and_cage() {
 	grow_region();
 	render_mode = ESelectionRenderMode::RegionGrowing;
+	
 	if (m_selection_grid_bitfield.size() > 0){
 			fix_proxy_mesh();
 			update_tet_mesh();

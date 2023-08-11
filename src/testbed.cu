@@ -1078,7 +1078,7 @@ void Testbed::imgui() {
 
 			ImGui::Separator();
 			ImGui::Text("Add operator");
-			if (ImGui::Button("Cage")) {
+			if (ImGui::Button("Cage")) {	//DA FIXARE: il numero di operatori deve essere assegnabile
 				for (int i=0; i<2; i++) {
 				auto cage_deformation = std::make_shared<CageDeformation>(
 					m_aabb,
@@ -1096,9 +1096,8 @@ void Testbed::imgui() {
 				m_nerf.tracer.add_edit_operator(cage_deformation);
 				}
 			}
-
+/*
 			ImGui::SameLine();
-
 			if (ImGui::Button("Box Cage")) {
 				auto cage_deformation = std::make_shared<CageDeformation>(
 					m_aabb,
@@ -1164,6 +1163,7 @@ void Testbed::imgui() {
 				update_density_grid_nerf_render(10, false, m_training_stream);
 				reset_accumulation();
 			}
+*/			
 			ImGui::SameLine();
 			if (ImGui::Button("Apply edits")) {		
 				//Rende true tutti i bool apply_all_edits_flag di tutti i growingselections di tutti gli operatori che hanno una cage

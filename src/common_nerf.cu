@@ -114,6 +114,7 @@ __device__ float advance_to_next_voxel(float t, float cone_angle, const Vector3f
 	return t;
 }
 
+//Avviato quando si fa lo scribbling e la proiezione
 __device__ uint32_t cascaded_grid_idx_at(Vector3f pos, uint32_t mip) {
 	float mip_scale = scalbnf(1.0f, -mip);
 	pos -= Vector3f::Constant(0.5f);

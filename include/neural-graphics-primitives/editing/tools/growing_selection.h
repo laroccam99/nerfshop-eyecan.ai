@@ -202,9 +202,9 @@ struct GrowingSelection {
 
     void add_ppoint_to_op(uint32_t selection_point_idx, Eigen::Vector3f selection_point);
     
-    void set_render_mode_to_RG() {  //DA FIXARE CON =
-        render_mode == ESelectionRenderMode::RegionGrowing;             //######################################################################################################################################DA FIXARE CON =
-    }//DA FIXARE CON =
+    void set_render_mode_to_RG() {  
+        render_mode = ESelectionRenderMode::RegionGrowing;
+    }
 
     void grow_and_cage();
 
