@@ -19,6 +19,7 @@
 #include <neural-graphics-primitives/common.h>
 #include <neural-graphics-primitives/discrete_distribution.h>
 #include <neural-graphics-primitives/editing/edit_operator.h>
+#include <neural-graphics-primitives/editing/cage_deformation.h>
 #include <neural-graphics-primitives/marching_cubes.h>
 #include <neural-graphics-primitives/nerf.h>
 #include <neural-graphics-primitives/nerf_loader.h>
@@ -192,7 +193,14 @@ public:
 		void add_edit_operator(std::shared_ptr<EditOperator> edit_operator) {
 			m_active_edit_operator = m_edit_operators.size();
 			m_edit_operators.push_back(edit_operator);
-		}
+/*
+			//Setta per l'ultimo operatore aggiunto un massimo di punti di output del Grow Far, in modo che possano essere successivamente spartiti equamente (1 per operatore) 
+			std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(edit_operator);
+			if (cage_deformation) {						//Controllo sul tipo
+				cage_deformation->m_growing_selection.set_max_ed_points(max_num_operators);
+			}
+*/		}
+
 		void delete_edit_operator(int index) {
 			m_edit_operators.erase(m_edit_operators.begin() + index);
 			if (m_active_edit_operator >= index) {
@@ -203,17 +211,31 @@ public:
 			m_edit_operators.clear();
 			m_active_edit_operator = -1;
 		}
+
 		std::vector<std::shared_ptr<EditOperator>>& edit_operators() {
 			return m_edit_operators;
 		}
+
 		int& active_edit_operator() {
 			return m_active_edit_operator;
+		}
+
+		void set_active_edit_operator(int value) {
+			m_active_edit_operator = value;
 		}
 
 		void clear() {
 			m_scratch_alloc = {};
 		}
-		
+
+		std::vector<std::shared_ptr<EditOperator>> get_edit_operators() {
+			return m_edit_operators;
+		}
+
+		int get_max_num_operators() {
+			return max_num_operators;
+		}	
+
 		int m_n_debug_operators = 10;
 
 		bool m_poisson_target = true;
@@ -236,7 +258,7 @@ public:
 		tcnn::GPUMemoryArena::Allocation m_scratch_alloc;
 		std::vector<std::shared_ptr<EditOperator>> m_edit_operators;
 		int m_active_edit_operator = -1;
-		
+		int max_num_operators = 2;										//numero di operatori che verranno utilizzati, numero di cage e deformazioni 
 	};
 
 	class FiniteDifferenceNormalsApproximator {
@@ -432,6 +454,7 @@ public:
 	Eigen::Vector3i compute_and_save_png_slices(const char* filename, int res, BoundingBox aabb = {}, float thresh = 2.5f, float density_range = 4.f, bool flip_y_and_z_axes = false);
 
 	////////////////////////////////////////////////////////////////
+
 	// marching cubes related state
 	MeshState m_mesh;
 	bool m_want_repl = false;

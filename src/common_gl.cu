@@ -27,7 +27,7 @@ void glCheckError(const char* file, unsigned int line) {
   }
 }
 
-
+//Called by Button Project (scribble)
 bool check_shader(GLuint handle, const char* desc, bool program) {
 	GLint status = 0, log_length = 0;
 	if (program) {
@@ -53,6 +53,7 @@ bool check_shader(GLuint handle, const char* desc, bool program) {
 	return (GLboolean)status == GL_TRUE;
 }
 
+//Called by Button Project (scribble)
 GLuint compile_shader(bool pixel, const char* code) {
 	GLuint g_VertHandle = glCreateShader(pixel ? GL_FRAGMENT_SHADER : GL_VERTEX_SHADER );
 	const char* glsl_version = "#version 330\n";

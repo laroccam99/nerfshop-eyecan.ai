@@ -192,6 +192,37 @@ struct GrowingSelection {
 
 	void set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices);
 
+    int get_m_grow_far_steps(){
+        return m_grow_far_steps;
+    }
+
+    int get_m_growing_steps(){
+        return m_growing_steps;
+    }
+
+    void GrowingSelection::set_max_ed_points(int max_num_operators) {
+        std::cout << "max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
+        m_region_growing.set_max_ed_points_limit(max_num_operators);
+        m_region_growing.set_min_ed_points_threshold(max_num_operators);
+        std::cout << "max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
+    }
+
+    void grow_and_cage();
+
+    void set_apply_all_edits_flag(bool value){
+        if (value == true) {            //AGGIUNGERE CHECK CHE CONTROLLA ESISTENZA DELLA CAGE
+            apply_all_edits_flag = true;
+            std::cout << "Current Operator apply_all_edits_flag: " << (apply_all_edits_flag ? "true" : "false") << std::endl;
+        }else {
+            apply_all_edits_flag = false;
+            std::cout << "Current Operator: Deformation disabled  " << std::endl;
+        }
+    }
+
+    bool get_apply_all_edits_flag(){
+        return apply_all_edits_flag;
+    }
+
 private:
 
     // Selection specifics
@@ -245,7 +276,8 @@ private:
     std::vector<uint8_t> m_selection_grid_bitfield;
 
     // Region-growing
-    int m_growing_steps = 10000;
+    int m_growing_steps = 8000;                         //utilizzato per il grow_region normale
+    int m_grow_far_steps = 25000;                       //utilizzato per il grow far button
     int m_growing_level = 0;
     float m_density_threshold = 0.01f;
     ERegionGrowingMode m_region_growing_mode = ERegionGrowingMode::Manual;
@@ -281,6 +313,10 @@ private:
 
     // Automatically update the tet when a manipulation is performed
     bool m_update_tet_manipulation = true;
+    bool do_it_once = false;                    //con un do-while si potrebbe evitare questa variabile, ma almeno ora è resettabile 
+    bool apply_all_edits_flag = false;          //se true, viene attuata la modifica (trasl/rotaz) automatica alla cage
+    const int max_number_of_iterations = 1;     //siccome è specifico di un operatore solo, va fissato a 1
+    int num_of_iterations = 0;                  //counter di modifiche automatiche avviate, di solito va da 0 a 1
 
     std::vector<Eigen::Vector3f> m_debug_points;
     std::vector<Eigen::Vector3f> m_debug_colors;
@@ -329,7 +365,7 @@ private:
     void upscale_growing();
 
     // Grow region (by user-selected steps)
-    void grow_region();
+    void grow_region(bool ed_flag, int growing_steps);
 
     // ------------------------
     // Morphological Operators
@@ -350,9 +386,7 @@ private:
 
     // Decimate fine mesh with linear bounding constraint
     void compute_proxy_mesh();
-
-
-
+    
     // Not used in practice
     void fix_fine_mesh();
 

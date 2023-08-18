@@ -45,6 +45,7 @@ namespace fs = filesystem;
 
 NGP_NAMESPACE_BEGIN
 
+//GUI Button Marching Cubes Mesh Input
 Vector3i get_marching_cubes_res(uint32_t res_1d, const BoundingBox &aabb) {
 	float scale = res_1d / (aabb.max - aabb.min).maxCoeff();
 	Vector3i res3d = ((aabb.max - aabb.min) * scale + Vector3f::Constant(0.5f)).cast<int>();
@@ -214,6 +215,7 @@ with z=1
 
 edges 8-11 go in +z direction from vertex 0-3
 */
+//Launched by marching_cubes_gpu()
 __global__ void gen_vertices(BoundingBox aabb, Vector3i res_3d, const float* __restrict__ density, int*__restrict__ vertidx_grid, Vector3f* verts_out, float thresh, uint32_t* __restrict__ counters) {
 	uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
 	uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -653,6 +655,8 @@ __global__ void gen_faces(Vector3i res_3d, const float* __restrict__ density, co
 	}
 }
 
+//Called by "Mesh it!" Button from marching_cubes.cu marching cubes_gpu()
+//Launched by GrowingSelection::extract_fine_mesh()
 void compute_mesh_1ring(const tcnn::GPUMemory<Vector3f> &verts, const tcnn::GPUMemory<uint32_t> &indices, tcnn::GPUMemory<Vector4f> &output_pos, tcnn::GPUMemory<Vector3f> &output_normals) { // computes the average of the 1ring of all verts, as homogenous coordinates
 	output_pos.resize(verts.size());
 	output_pos.memset(0);
@@ -727,6 +731,7 @@ void compute_mesh_opt_gradients(
 	);
 }
 
+//Launched by GrowingSelection::extract_fine_mesh()
 void marching_cubes_gpu(cudaStream_t stream, BoundingBox aabb, Vector3i res_3d, float thresh, const tcnn::GPUMemory<float>& density, tcnn::GPUMemory<Vector3f>& verts_out, tcnn::GPUMemory<uint32_t>& indices_out) {
 	GPUMemory<uint32_t> counters;
 
@@ -757,6 +762,7 @@ void marching_cubes_gpu(cudaStream_t stream, BoundingBox aabb, Vector3i res_3d, 
 	gen_faces<<<blocks, threads, 0>>>(res_3d, density.data(), vertex_grid, indices_out.data(), thresh, counters.data()+2);
 }
 
+//GUI Button "Save it!" per salvare la mesh ottenuta con marching cubes (GUI Button Mesh it)
 void save_mesh(
 	GPUMemory<Vector3f>& verts,
 	GPUMemory<Vector3f>& normals,
@@ -895,6 +901,7 @@ void save_mesh(
 	fclose(f);
 }
 
+//Called by "Save density PNG" button in Marching Cubes Mesh Output
 void save_density_grid_to_png(const GPUMemory<float>& density, const char* filename, Vector3i res3d, float thresh, bool swap_y_z, float density_range) {
 	float density_scale = 128.f / density_range; // map from -density_range to density_range into 0-255
 	std::vector<float> density_cpu;
@@ -973,6 +980,7 @@ void save_density_grid_to_png(const GPUMemory<float>& density, const char* filen
 	free(pngpixels);
 }
 
+//Called by testbed_nerf.cu "Save RGBA PNG sequence" button
 // Distinct from `save_density_grid_to_png` not just in that is writes RGBA, but also
 // in that it writes a sequence of PNGs rather than a single large PNG.
 // TODO: make both methods configurable to do either single PNG or PNG sequence.

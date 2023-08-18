@@ -1,7 +1,7 @@
 #include <neural-graphics-primitives/common_nerf.h>
 
 NGP_NAMESPACE_BEGIN
-
+//forse utile per rintracciare coordinate
 __host__ __device__ Eigen::Vector3f warp_position(const Eigen::Vector3f& pos, const BoundingBox& aabb) {
 	// return {tcnn::logistic(pos.x() - 0.5f), tcnn::logistic(pos.y() - 0.5f), tcnn::logistic(pos.z() - 0.5f)};
 	// return pos;
@@ -114,6 +114,7 @@ __device__ float advance_to_next_voxel(float t, float cone_angle, const Vector3f
 	return t;
 }
 
+//Avviato quando si fa lo scribbling e la proiezione
 __device__ uint32_t cascaded_grid_idx_at(Vector3f pos, uint32_t mip) {
 	float mip_scale = scalbnf(1.0f, -mip);
 	pos -= Vector3f::Constant(0.5f);
@@ -122,6 +123,7 @@ __device__ uint32_t cascaded_grid_idx_at(Vector3f pos, uint32_t mip) {
 
 	Vector3i i = (pos * NERF_GRIDSIZE()).cast<int>();
 
+	//Checks if any of the components of the integer vector are outside the range [-1, NERF_GRIDSIZE()]
 	if (i.x() < -1 || i.x() > NERF_GRIDSIZE() || i.y() < -1 || i.y() > NERF_GRIDSIZE() || i.z() < -1 || i.z() > NERF_GRIDSIZE()) {
 		printf("WTF %d %d %d\n", i.x(), i.y(), i.z());
 	}
@@ -150,10 +152,12 @@ __device__ float& cascaded_grid_at(Vector3f pos, float* cascaded_grid, uint32_t 
 	return cascaded_grid[idx+grid_mip_offset(mip)];
 }
 
+//Launched by RegionGrowing::grow_region()
 __host__ __device__ bool get_bitfield_at(const uint32_t cell_idx, const uint32_t level, const uint8_t* bitfield)  {
 	return bitfield[cell_idx/8+grid_mip_offset(level)/8] & (1<<(cell_idx%8));
 }
 
+//Launched by RegionGrowing::grow_region()
 __host__ __device__ void set_bitfield_at(const uint32_t cell_idx, const uint32_t level, const bool value, uint8_t* bitfield) {
 	uint32_t selected_bit = cell_idx%8;
 	uint32_t mask = 1 << selected_bit;
@@ -215,6 +219,7 @@ NetworkDims network_dims_nerf() {
 	return dims;
 }
 
+//Launched when building the proxy cage
 __host__ __device__ Eigen::Vector3f evaluate_sh9(const SH9RGB& sh, const Eigen::Vector3f dir) {
 	// Adapted from https://jcgt.org/published/0002/02/06/paper.pdf
 

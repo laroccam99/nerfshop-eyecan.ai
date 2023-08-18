@@ -179,10 +179,8 @@ json Testbed::load_network_config(const fs::path& network_config_path) {
 		result = json::parse(f, nullptr, true, true);
 		result = merge_parent_network_config(result, network_config_path);
 	}
-
 	return result;
 }
-
 
 void Testbed::reload_network_from_file(const std::string& network_config_path_string) {
 	if (!network_config_path_string.empty()) {
@@ -194,7 +192,6 @@ void Testbed::reload_network_from_file(const std::string& network_config_path_st
 			// appropriate config when switching modes.
 			m_network_config_path = network_config_path_string;
 		//}
-
 	}
 
 	m_network_config = load_network_config(m_network_config_path);
@@ -255,6 +252,7 @@ void Testbed::set_visualized_dim(int dim) {
 	reset_accumulation();
 }
 
+//comando camera rotella cliccata
 void Testbed::translate_camera(const Vector3f& rel) {
 	m_camera.col(3) += m_camera.block<3,3>(0,0) * rel * m_bounding_radius;
 	if (!m_dlss) {
@@ -273,7 +271,7 @@ Vector3f Testbed::look_at() const {
 void Testbed::set_look_at(const Vector3f& pos) {
 	m_camera.col(3) += pos - look_at();
 }
-
+//comando camera zoom con rotella
 void Testbed::set_scale(float scale) {
 	auto prev_look_at = look_at();
 	m_camera.col(3) = (view_pos() - prev_look_at) * (scale / m_scale) + prev_look_at;
@@ -287,7 +285,7 @@ void Testbed::set_view_dir(const Vector3f& dir) {
 	m_camera.col(2) = dir.normalized();
 	set_look_at(old_look_at);
 }
-
+//GUI Button Slider "Training view" per vedere i frame iniziali
 void Testbed::set_camera_to_training_view(int trainview) {
 	auto old_look_at = look_at();
 	m_camera = m_smoothed_camera = m_nerf.training.dataset.xforms[trainview].start;
@@ -298,6 +296,7 @@ void Testbed::set_camera_to_training_view(int trainview) {
 	m_screen_center = Vector2f::Constant(1.0f) - m_nerf.training.dataset.metadata[0].principal_point;
 }
 
+//Si attiva all'avvio
 void Testbed::reset_camera() {
 	m_fov_axis = 1;
 	set_fov(50.625f);
@@ -314,7 +313,7 @@ void Testbed::reset_camera() {
 	m_sun_dir = Vector3f::Ones().normalized();
 	reset_accumulation();
 }
-
+//GUI Button verde start training
 void Testbed::set_train(bool mtrain) {
 	if (m_train && !mtrain && m_max_level_rand_training) {
 		set_max_level(1.f);
@@ -341,7 +340,7 @@ void Testbed::compute_and_save_marching_cubes_mesh(const char* filename, Vector3
 	marching_cubes(res3d, aabb, thresh);
 	save_mesh(m_mesh.verts, m_mesh.vert_normals, m_mesh.vert_colors, m_mesh.indices, filename, unwrap_it, m_nerf.training.dataset.scale, m_nerf.training.dataset.offset);
 }
-
+//GUI Button "Save density PNG" in Marching Cubes Mesh Output 
 Eigen::Vector3i Testbed::compute_and_save_png_slices(const char* filename, int res, BoundingBox aabb, float thresh, float density_range, bool flip_y_and_z_axes) {
 	if (aabb.is_empty()) {
 		aabb = m_testbed_mode == ETestbedMode::Nerf ? m_render_aabb : m_aabb;
@@ -464,7 +463,7 @@ void Testbed::imgui() {
 		ImGui::SameLine();
 		if (m_train)
 		{
-			imgui_colored_button("Hover to stop", 0.0);
+			imgui_colored_button("Hover_to_Stop", 0.0);
 			if (ImGui::IsItemHovered())
 			{
 				m_train = false;
@@ -1079,26 +1078,26 @@ void Testbed::imgui() {
 
 			ImGui::Separator();
 			ImGui::Text("Add operator");
-
-			if (ImGui::Button("Cage")) {
-				auto cage_deformation = std::make_shared<CageDeformation>(
-					m_aabb,
-					m_training_stream,
-					m_nerf_network,
-					m_nerf.density_grid,
-					m_nerf.density_grid_bitfield,
-					m_nerf.cone_angle_constant,
-					m_nerf.rgb_activation,
-					m_nerf.density_activation,
-					m_nerf.light_dir,
-					get_filename_in_data_path_with_suffix(m_data_path, "envmap", ".png"),
-					m_nerf.max_cascade
+			if (ImGui::Button("Start")) {	
+				for (int i=0; i<m_nerf.tracer.get_max_num_operators(); i++) {		//Numero di operatori assegnabile
+					auto cage_deformation = std::make_shared<CageDeformation>(
+						m_aabb,
+						m_training_stream,
+						m_nerf_network,
+						m_nerf.density_grid,
+						m_nerf.density_grid_bitfield,
+						m_nerf.cone_angle_constant,
+						m_nerf.rgb_activation,
+						m_nerf.density_activation,
+						m_nerf.light_dir,
+						get_filename_in_data_path_with_suffix(m_data_path, "envmap", ".png"),
+						m_nerf.max_cascade
 					);
-				m_nerf.tracer.add_edit_operator(cage_deformation);
+					m_nerf.tracer.add_edit_operator(cage_deformation);				//Aggiunge operatore e obbliga max_num_operators==numero di punti output del Grow Far
+				}				
 			}
-
+/*
 			ImGui::SameLine();
-
 			if (ImGui::Button("Box Cage")) {
 				auto cage_deformation = std::make_shared<CageDeformation>(
 					m_aabb,
@@ -1113,7 +1112,6 @@ void Testbed::imgui() {
 					get_filename_in_data_path_with_suffix(m_data_path, "envmap", ".png"),
 					m_nerf.max_cascade
 					);
-
 
 				std::vector<point_t> cube_points =
 				{
@@ -1165,69 +1163,92 @@ void Testbed::imgui() {
 				update_density_grid_nerf_render(10, false, m_training_stream);
 				reset_accumulation();
 			}
+*/			
+			ImGui::SameLine();
+			//Per ogni operatore effettua un grow_region() e costruisce una cage
+			if (ImGui::Button("Grow&Cage")) {
+				std::cout << "################################################ Button Grow&Cage Cliccato" << std::endl;
+				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+				std::cout << "Number of operators: " << operators.size() << std::endl;
 
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "Add operator Cage"
+				for (int i = 0; i < operators.size(); ++i) {
+					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
+					
+					if (cage_deformation) {						//Controllo sul tipo
+						cage_deformation->m_growing_selection.grow_and_cage();
+					}
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("APPLY")) {		
+				//Rende true tutti i bool apply_all_edits_flag di tutti i growingselections di tutti gli operatori che hanno una cage
+				std::cout << "################################################ Button APPLY Cliccato" << std::endl;
+
+				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+				std::cout << "Number of operators: " << operators.size() << std::endl;
+
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "Add operator Cage"
+				for (const auto& edit_operator : operators) {
+					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(edit_operator);
+					
+					if (cage_deformation) {						//Controllo sul tipo
+						std::cout << "cage_deformation " << cage_deformation << " apply_all_edits_flag : " << (cage_deformation->m_growing_selection.get_apply_all_edits_flag() ? true : false) << std::endl;
+						cage_deformation->m_growing_selection.set_apply_all_edits_flag(true);		//setta true ???...solo se già esiste una cage per quell'operatore
+					}
+				}
+/*				
+				//Switcha tra tutti gli operatori attivi in modo da applicare le modifiche a tutti
+				m_nerf.tracer.set_active_edit_operator(m_nerf.tracer.get_edit_operators().size()-1);	//mostra l'ultimo operatore
+				std::cout << "active_edit_operator START: " << m_nerf.tracer.active_edit_operator() << std::endl;
+				
+				while (m_nerf.tracer.active_edit_operator() !=0) { 													//NON FUNZIONA, NON APPLICA LE MODIFICHE
+				m_nerf.tracer.set_active_edit_operator(m_nerf.tracer.active_edit_operator()-1);
+				std::cout << "active_edit_operator decreased to: " << m_nerf.tracer.active_edit_operator() << std::endl;
+				}
+
+				m_nerf.tracer.set_active_edit_operator(m_nerf.tracer.get_edit_operators().size()-1);	//mostra l'ultimo operatore
+				std::cout << "active_edit_operator reset to MAX " << std::endl;
+
+				// Memorizza il valore originale
+				int originalValue = m_nerf.tracer.active_edit_operator();
+
+				// Simula l'interazione con lo slider impostando un valore specifico
+				int simulatedValue = 2; // Valore simulato
+				m_nerf.tracer.active_edit_operator() = simulatedValue;
+
+				// Chiama ImGui::SliderInt per rendere ImGui consapevole dell'interazione simulata
+				ImGui::SliderInt("Active Operator", &(m_nerf.tracer.active_edit_operator()), -1, m_nerf.tracer.edit_operators().size() - 1);
+
+				// Reimposta il valore originale subito dopo
+				m_nerf.tracer.active_edit_operator() = originalValue;
+*/				
+			}
 			ImGui::Separator();
 
-			//if (ImGui::Button("Add Twist Operator")) {
-			//	AffineBoundingBox selection_zone(m_aabb.center(), m_aabb.diag()[0]/10.f);
-			//	Eigen::Vector3f selection_translation(0.0f, m_aabb.diag()[0]/10.f, 0.0f);
-			//	float angle = 1.57f;
-			//	auto twist_operator = std::make_shared<TwistOperator>(selection_zone, angle, m_aabb);
-			//	m_nerf.tracer.add_edit_operator(twist_operator);
-			//	// Update the density grid with the new transformation
-			//	update_density_grid_nerf_render(10, false, m_training_stream);
-			//	reset_accumulation();
-			//}
+
 			if (m_nerf.tracer.edit_operators().size() > 0 && imgui_colored_button("Remove All", 0.0)) {
 				m_nerf.tracer.reset_edit_operators();
 			}
 
-			// Edits load/save pipeline
-			 //static char edits_filename_buf[128] = "";
-			 //if (edits_filename_buf[0] == '\0') {
-			 //	snprintf(edits_filename_buf, sizeof(edits_filename_buf), "%s", get_filename_in_data_path_with_suffix(m_data_path, "edits", ".json").c_str());
-			 //}
-
-			 //if (ImGui::Button("Save")) {
-			 //	save_edits(edits_filename_buf);
-			 //}
-			 //ImGui::SameLine();
-			 //static std::string edits_load_error_string = "";
-			 //if (ImGui::Button("Load")) {
-			 //	try {
-			 //		load_edits(edits_filename_buf);
-			 //	} catch (std::exception& e) {
-			 //		ImGui::OpenPopup("Edits load error");
-			 //		edits_load_error_string = std::string{"Failed to load edits: "} + e.what();
-			 //	}
-			 //	update_density_grid_nerf_render(10, false, m_training_stream);	
-			 //	reset_accumulation();
-			 //}
-			 //ImGui::SameLine();
-			 //if (ImGui::BeginPopupModal("Edits load error", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-			 //	ImGui::Text("%s", edits_load_error_string.c_str());
-			 //	if (ImGui::Button("OK", ImVec2(120, 0))) {
-			 //		ImGui::CloseCurrentPopup();
-			 //	}
-			 //	ImGui::EndPopup();
-			 //}
-			 //ImGui::SameLine();
-			 //ImGui::InputText("File", edits_filename_buf, sizeof(edits_filename_buf));
-
 			if (m_nerf.tracer.edit_operators().size() > 0) {
-
+				//Calculate the resolution, focal length, and screen center based on the window resolution, field of view, and zoom level
 				Eigen::Vector2i resolution = m_window_res;
 				Vector2f focal_length = calc_focal_length(resolution, m_fov_axis, m_zoom);
 				Vector2f screen_center = render_screen_center();
 
 				// ImGui::Text("Active Operator");
 				// if (m_nerf.tracer.active_edit_operator() >= 0 && m_nerf.tracer.edit_operators().size() > 0)
+
+				// If there are edit operators, it creates a slider for selecting the active operator
 				if (m_nerf.tracer.edit_operators().size() > 0)
+					//Parametri: nome, contenuto, minimo, massimo
 					ImGui::SliderInt("Active Operator", &(m_nerf.tracer.active_edit_operator()), -1, m_nerf.tracer.edit_operators().size() - 1);
 				bool imgui_edit = false;
-				for (int i = 0; i < m_nerf.tracer.edit_operators().size(); i++) {
+
+				for (int i = 0; i < m_nerf.tracer.edit_operators().size(); i++) {					//It iterates through all the edit operators
 					auto edit_operator = m_nerf.tracer.edit_operators()[i];
-					if (i == m_nerf.tracer.active_edit_operator()) {
+					if (i == m_nerf.tracer.active_edit_operator()) {			//It sets the style color for the operator based on whether it is the active operator or not
 						ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.26f, 0.59f, 0.25f, 0.31f));
 					} else {
 						ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.00f));
@@ -1235,34 +1256,32 @@ void Testbed::imgui() {
 					bool delete_operator = false;
 
 					// Create a new stack ID to support buttons with the same name!
-					ImGui::PushID(i);
-					ImGui::SetNextItemOpen(i == m_nerf.tracer.active_edit_operator());
+					ImGui::PushID(i);											//Push unique ID for the operator to support buttons with the same name
+					ImGui::SetNextItemOpen(i == m_nerf.tracer.active_edit_operator());	//Calls the "imgui" function of the edit operator
 					imgui_edit |= edit_operator->imgui(delete_operator, resolution, focal_length, m_smoothed_camera, screen_center, m_auto_clean);
 					// if (i == m_nerf.tracer.active_edit_operator()) {
 					// 	ImGui::PopStyleColor();
 						
 					// }
-					ImGui::PopStyleColor();
-					// Enable drag and drop reordering of operators
-					if (ImGui::IsItemActive() && !ImGui::IsItemHovered())
+					ImGui::PopStyleColor();										//Pops the style color
+					if (ImGui::IsItemActive() && !ImGui::IsItemHovered())		//Enable drag and drop reordering of operators
 					{
-						int i_next = i + (ImGui::GetMouseDragDelta(0).y < 0.f ? -1 : 1);
-						if (i_next >= 0 && i_next < m_nerf.tracer.edit_operators().size())
-						{
+						int i_next = i + (ImGui::GetMouseDragDelta(0).y < 0.f ? -1 : 1);	//index of the next operator based on the mouse drag delta
+						if (i_next >= 0 && i_next < m_nerf.tracer.edit_operators().size()){
 							m_nerf.tracer.edit_operators()[i] = m_nerf.tracer.edit_operators()[i_next];
 							m_nerf.tracer.edit_operators()[i_next] = edit_operator;
 							if (m_nerf.tracer.active_edit_operator() == i || m_nerf.tracer.active_edit_operator() == i_next) {
-								m_nerf.tracer.active_edit_operator() = (m_nerf.tracer.active_edit_operator() == i) ? i_next : i;
+								m_nerf.tracer.active_edit_operator() = (m_nerf.tracer.active_edit_operator() == i) ? i_next : i;	//Inversione ordine operatori
 							}
 							ImGui::ResetMouseDragDelta();
 						}
 					}
 					ImGui::PopID();
-					if (delete_operator) {
+					if (delete_operator) {										//If the operator is flagged for deletion, deletes the operator from the tracer
 						m_nerf.tracer.delete_edit_operator(i);
 					}
 				}
-				if (imgui_edit) {
+				if (imgui_edit) {	// If any changes were made to the edit operators in the ImGui interface, updates  density grid and resets the accumulation
 					update_density_grid_nerf_render(50, false, m_training_stream);
 					reset_accumulation();
 				}
@@ -1276,46 +1295,7 @@ void Testbed::imgui() {
 				m_distill = true;
 				set_train(true);
 			}
-			//ImGui::SliderInt("Batch size", &m_student_trainer_batch_size, 8, 18);
-
-			//if (ImGui::Button("Init student")) {
-			//	m_student_trainer.init_student(m_network_config, m_nerf_network, m_aabb, m_nerf.density_grid, m_nerf.max_cascade, m_nerf.training.dataset.aabb_scale, m_training_stream);
-			//}
-			//ImGui::SameLine();
-			//if (imgui_colored_button(m_train_student ? "Stop training" : "Start training", 0.4)) {
-			//	m_train_student = !m_train_student;
-			//}
-			//ImGui::SameLine();
-			//if (imgui_colored_button(m_render_student ? "Render teacher" : "Render student", 0.4)) {
-			//	m_render_student = !m_render_student;
-			//}
-			//ImGui::SameLine();
-			//if (ImGui::Button("Get Student")) {
-			//	m_network = m_nerf_network = m_student_trainer.student_network();
-			//	m_loss = m_student_trainer.loss();
-			//	m_optimizer = m_student_trainer.optimizer();
-			//	m_trainer = m_student_trainer.trainer();
-			//}
-			//ImGui::Checkbox("Display Debug Student", &m_display_student_debug);
-			//if (m_display_student_debug) {
-			//	ImGui::SameLine();
-			//	ImGui::Checkbox("Teacher samples", &m_display_teacher_samples);
-			//}
-			//ImGui::Checkbox("Smooth samples", &m_student_trainer.use_gaussian_smoothing);
-			//if (m_student_trainer.use_gaussian_smoothing) {
-			//	ImGui::SliderFloat("Sigma smoothing ", &m_student_trainer.sigma_smoothing, 1e-14, 0.1, "%.14f", ImGuiSliderFlags_Logarithmic);
-			//	ImGui::SliderInt("Smoothing samples ", &m_student_trainer.n_gaussian_samples, 1, 100, "%d", ImGuiSliderFlags_Logarithmic);
-			//}
-			//ImGui::SliderFloat("Lambda features ", &m_student_trainer.lambda_features, 0.001, 10.0, "%f", ImGuiSliderFlags_Logarithmic);
-			//ImGui::SliderInt("Trained levels ", &m_student_trainer.n_trained_encoding_levels, 1, m_student_trainer.n_encoding_levels);
-			//ImGui::SliderInt("Rejection samples ", &m_student_trainer.n_rejections, 1, 100, "%d", ImGuiSliderFlags_Logarithmic);
-			//ImGui::Text("Steps: %d, Loss: %0.6f", m_student_trainer.training_step(), m_student_trainer.loss_scalar);
-			//ImGui::Text("Requested batch size: %d,\nSub batch size: %d,\nn sub batches: %d", 1 << m_student_trainer_batch_size, m_student_trainer.sub_batch_size, m_student_trainer.n_sub_batches);
-			//ImGui::PlotLines("loss", m_student_loss_graph, std::min(m_student_loss_graph_samples, 256u), (m_student_loss_graph_samples < 256u) ? 0 : (m_student_loss_graph_samples & 255u), 0, FLT_MAX, FLT_MAX, ImVec2(0, 50.f));
 		}
-		
-/*		ImGui::NextWindowPos(ImVec2(main_viewport->WorkPos.x + main_viewport->WorkSize.x - 350, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver)*/;
-		
 	}
 	ImGui::End();
 
@@ -2142,6 +2122,7 @@ size_t Testbed::n_encoding_params() {
 	return m_network->n_params() - first_encoder_param();
 }
 
+//Called by "Gather histograms" Checkbox in Histograms of trainable parameters 
 size_t Testbed::first_encoder_param() {
 	auto layer_sizes = m_network->layer_sizes();
 	size_t first_encoder = 0;
@@ -2442,6 +2423,7 @@ void Testbed::reset_network() {
 	}
 }
 
+//Prima funzione che si attiva dal main
 Testbed::Testbed(ETestbedMode mode)
 : m_testbed_mode(mode)
 {
@@ -2629,6 +2611,7 @@ __global__ void dlss_prep_kernel(
 	}
 }
 
+//Avvia gui
 void Testbed::render_frame(const Matrix<float, 3, 4>& camera_matrix0, const Matrix<float, 3, 4>& camera_matrix1, const Vector4f& nerf_rolling_shutter, CudaRenderBuffer& render_buffer, bool to_srgb) {
 	Vector2i max_res = m_window_res.cwiseMax(render_buffer.in_resolution());
 
@@ -2862,7 +2845,7 @@ void Testbed::determine_autofocus_target_from_pixel(const Vector2i& focus_pixel)
 	m_autofocus_target = ray.o + ray.d * depth;
 	m_autofocus = true; // If someone shift-clicked, that means they want the AUTOFOCUS
 }
-
+//GUI Button Checkbox "Autofocus" in Camera
 void Testbed::autofocus() {
 	float new_slice_plane_z = std::max(view_dir().dot(m_autofocus_target - view_pos()), 0.1f) - m_scale;
 	if (new_slice_plane_z != m_slice_plane_z) {
@@ -2872,7 +2855,7 @@ void Testbed::autofocus() {
 		}
 	}
 }
-
+//Called by "Gather histograms" Checkbox in Histograms of trainable parameters
 Testbed::LevelStats compute_level_stats(const float* params, size_t n_params) {
 	Testbed::LevelStats s = {};
 	for (size_t i = 0; i < n_params; ++i) {
@@ -2891,7 +2874,7 @@ Testbed::LevelStats compute_level_stats(const float* params, size_t n_params) {
 	}
 	return s;
 }
-
+//GUI Checkbox "Gather histograms" in Histograms of trainable parameters
 void Testbed::gather_histograms() {
 	int n_params = (int)m_network->n_params();
 	int first_encoder = first_encoder_param();
@@ -3051,11 +3034,12 @@ void Testbed::gather_histograms() {
 //	//}
 //}
 
+//GUI Button Load(Legacy) (snapshot)
 void Testbed::load_snapshot(const std::string& filepath_string) {
 	auto config = load_network_config(filepath_string);
 	if (!config.contains("snapshot")) {
 		throw std::runtime_error{ std::string{"File '"} + filepath_string + "' does not contain a snapshot." };
-	}
+	} 
 
 	m_network_config_path = filepath_string;
 	m_network_config = config;
@@ -3064,8 +3048,7 @@ void Testbed::load_snapshot(const std::string& filepath_string) {
 		m_nerf.training.counters_rgb.rays_per_batch = m_network_config["snapshot"]["nerf"]["rgb"]["rays_per_batch"];
 		m_nerf.training.counters_rgb.measured_batch_size = m_network_config["snapshot"]["nerf"]["rgb"]["measured_batch_size"];
 		m_nerf.training.counters_rgb.measured_batch_size_before_compaction = m_network_config["snapshot"]["nerf"]["rgb"]["measured_batch_size_before_compaction"];
-		// If we haven't got a nerf dataset loaded, load dataset metadata from the snapshot
-		// and render using just that.
+		// If we haven't got a nerf dataset loaded, load dataset metadata from the snapshot and render using just that.
 		if (m_data_path.empty() && m_network_config["snapshot"]["nerf"].contains("dataset")) {
 			m_nerf.training.dataset = m_network_config["snapshot"]["nerf"]["dataset"];
 			load_nerf();
@@ -3088,6 +3071,7 @@ void Testbed::load_snapshot(const std::string& filepath_string) {
 
 }
 
+// GUI Button Save(Legacy) (snapshot)
 void Testbed::save_snapshot(const std::string& filepath_string, bool include_optimizer_state) {
 	fs::path filepath = filepath_string;
 	m_network_config["snapshot"] = m_trainer->serialize(include_optimizer_state);
@@ -3115,6 +3099,7 @@ void Testbed::save_snapshot(const std::string& filepath_string, bool include_opt
 // Increment this number when making a change to the snapshot format
 static const size_t SNAPSHOT_FORMAT_VERSION = 1;
 
+//GUI Button Save (dello snapshot)
 void Testbed::export_snapshot(const std::string& filepath_string, bool include_optimizer_state, bool compress) {
 	m_network_config["snapshot"] = m_trainer->serialize(include_optimizer_state);
 

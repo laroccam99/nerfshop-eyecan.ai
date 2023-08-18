@@ -34,8 +34,6 @@
 
 #include <imguizmo/ImGuizmo.h>
 
-
-
 NGP_NAMESPACE_BEGIN
 
 GrowingSelection::GrowingSelection(
@@ -127,11 +125,20 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 	bool growing_allowed = m_projected_cell_idx.size() > 0 || m_selection_points.size() > 0;
 	if (growing_allowed) {
 		ImGui::SameLine(); 
-		if(ImGui::Button("GROW REGION")) {
-			grow_region();
+		if(ImGui::Button("GROW_REGION")) {
+			grow_region(false, get_m_growing_steps());
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
-	}
+		ImGui::SameLine(); 
+		if(ImGui::Button("GROW FAR")) {
+			grow_region(true, get_m_grow_far_steps());
+			render_mode = ESelectionRenderMode::RegionGrowing;
+		}
+		ImGui::SameLine(); //SI POTREBBE CONTROLLARE LA PRESENZA DI UN FLAG PER PASSARE A QUESTA MODALITà
+		if(ImGui::Button("GROW&CAGE")) {
+			grow_and_cage();
+		}
+	}	
 
 	bool proxy_allowed = true;// m_selection_points.size() > 0;
 	if (proxy_allowed) {
@@ -158,7 +165,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			{
 				ImGui::SameLine();
 				// Will extract and clean the proxy directly, then compute the tet mesh and extract it as well
-				if (ImGui::Button("COMPUTE PROXY")) {
+				if (ImGui::Button("COMPUTE1")) {
 					ImGui::Text("Please wait, computing proxy...");
 					fix_proxy_mesh();
 					update_tet_mesh();
@@ -171,16 +178,28 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 	bool clear_selection_allowed = m_selected_pixels.size() > 0 || m_selection_cell_idx.size() > 0 || proxy_cage.vertices.size() > 0;
 	if (clear_selection_allowed && imgui_colored_button2("Clear selection", 0.f)) {
 		clear();
+		//set_apply_all_edits_flag(false);						//aggiunto per testing
+		apply_all_edits_flag = false;
+		do_it_once = false;
 	}
 	bool reset_growing_allowed = m_selection_cell_idx.size() > 0;
 	if (reset_growing_allowed) {
 		ImGui::SameLine();
 		if (imgui_colored_button2("Reset growing", 0.1f)) {
 			reset_growing();
+			//set_apply_all_edits_flag(false);						//aggiunto per testing
+			apply_all_edits_flag = false;
+			do_it_once = false;
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
 	}
-
+	//DA RIMUOVERE: Button UTILE SOLO PER TESTING#############################################à
+	ImGui::SameLine();
+	if (m_selection_grid_bitfield.size() > 0) {
+		if (imgui_colored_button2("Apply 1 edit", 0.2f)) {
+			set_apply_all_edits_flag(true);
+		}
+	}
 	if (tet_interpolation_mesh) {
 		if (imgui_colored_button2("Vanish!", 0.4f)) {
 			tet_interpolation_mesh->vanish(m_density_grid.data(), m_density_grid_bitfield.data(), m_stream);
@@ -268,7 +287,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Grow region")) {
-				grow_region();
+				grow_region(false, get_m_growing_steps());
 				render_mode = ESelectionRenderMode::RegionGrowing;
 			}
 			ImGui::Combo("Growing Mode", (int*)&(m_region_growing_mode), RegionGrowingModeStr);
@@ -432,7 +451,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
     
     
     ImGui::Separator();
-    ImGui::Combo("Operator Visualization", (int*)&render_mode, SelectionRenderModeStr);
+    ImGui::Combo("Operator Visualization", (int*)&render_mode, SelectionRenderModeStr);			//da controllare
     // if (render_mode == ESelectionRenderMode::TetMesh) {
     //     ImGui::Combo("TetMeshRenderMode", (int*)&(tet_interpolation_mesh->render_mode), TetMeshRenderModeStr);
     // } else if (render_mode == ESelectionRenderMode::ProxyMesh) {
@@ -456,11 +475,17 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 	return grid_edit;
 }
 
+//Edit GUI
+// The function returns a boolean value indicating whether the gizmo was edited or not.
 bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view2proj, const Eigen::Matrix<float, 4, 4> &world2proj, const Eigen::Matrix<float, 4, 4> &world2view, const Eigen::Vector2f& focal, float aspect, float time) {
-
+	
+	//Record the current time to measure performance.
 	auto before = std::chrono::system_clock::now();
+	//Get the foreground draw list from ImGui, which will be used for rendering.	
     ImDrawList* list = ImGui::GetForegroundDrawList();
 
+	/*Initialize variables and matrices related to Guizmo visualization and editing, 
+	such as the focal length, aspect ratio, and view-to-projection matrix.*/
     // Guizmo visualization and editing
     bool edited_guizmo = false;
     float flx = focal.x();
@@ -475,11 +500,14 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
         0, 0, 1, 0;
 
     ImGuiIO& io = ImGui::GetIO();
+	//Set the ImGuizmo rectangle to cover the entire display area.
     ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 
+	//Questa porzione di codice non viene attivata, non ho trovato nessun punto in cui viene modificato m_rigid_editing
 	if (m_rigid_editing && cage_edition.selected_vertices.size() == 0)
 	{
 		for (int i = 0; i < proxy_cage.vertices.size(); i++) cage_edition.selected_vertices.push_back(i);
+		//Initialize the vertex selection
 		cage_edition.selection_barycenter = point_t::Zero();
 		if (!m_plane_dir.isZero())
 		{
@@ -494,67 +522,148 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 			cage_edition.selection_rotation = matrix3_t::Identity();
 		}
 		cage_edition.selection_scaling = point_t::Ones();
-		for (const auto selected_vertex : cage_edition.selected_vertices) {
+
+		//Compute the barycenter and rotation matrix of the selection
+		std::cout << "cage_edition.selected_vertices size: " << cage_edition.selected_vertices.size() << std::endl;
+		std::cout << "proxy_cage.vertices size: " << proxy_cage.vertices.size() << std::endl;
+
+		for (const auto selected_vertex: cage_edition.selected_vertices) {
 			cage_edition.selection_barycenter += proxy_cage.vertices[selected_vertex];
 		}
 		cage_edition.selection_barycenter /= cage_edition.selected_vertices.size();
+
+		std::cout << "cage_edition.selection_barycenter m_rigid_editing: " << cage_edition.selection_barycenter << std::endl;
+
+/*
+		for (const auto selected_point : m_selection_points) {
+			cage_edition.selection_barycenter += selected_point;
+		}
+		cage_edition.selection_barycenter /= m_selection_points.size();
+
+		std::cout << "cage_edition.selection_barycenter: " << cage_edition.selection_barycenter << std::endl;
+*/
 	}
 
+	//Create an edit_matrix to store the transformation matrix for the selected vertices.
     Eigen::Matrix4f edit_matrix;
 	//point_t guizmo_scale = point_t(1.0f, 1.0f, 1.0f);
 	compose_imguizmo_matrix<matrix3_t, point_t, float_t>(edit_matrix, cage_edition.selection_rotation, cage_edition.selection_barycenter, cage_edition.selection_scaling);
 	
-    if (cage_edition.selected_vertices.size() > 0 && (render_mode == ESelectionRenderMode::ProxyMesh || render_mode == ESelectionRenderMode::TetMesh || render_mode == ESelectionRenderMode::Off) &&  ImGuizmo::Manipulate((const float*)&world2view, (const float*)&view2proj_guizmo, (ImGuizmo::OPERATION)m_gizmo_op, (ImGuizmo::MODE)m_gizmo_mode, (float*)&edit_matrix, NULL, NULL)) {
-        edited_guizmo = true;
-
-		matrix3_t guizmo_rotation;
-		point_t guizmo_translation;
-		point_t guizmo_scale = point_t(1.0f, 1.0f, 1.0f);
-		decompose_imguizmo_matrix<matrix3_t, point_t, float_t>(edit_matrix, guizmo_rotation, guizmo_translation, guizmo_scale);
-        point_t translation = guizmo_translation - cage_edition.selection_barycenter;
-        matrix3_t rotation = guizmo_rotation * cage_edition.selection_rotation.transpose();
-		point_t scaling = guizmo_scale.cwiseQuotient(cage_edition.selection_scaling);
-        // std::cout << m_rotation_matrix.determinat() << std::endl;
-        // m_scale = guizmo_scale.cwiseQuotient(m_selection_box.scale);
-
-		if (m_target == EManipulationTarget::CageVerts)
-		{
-			if (m_rigid_editing)
-			{
-				for (auto& selected_vertex : proxy_cage.vertices) {
-					// Rotate (w.r.t. barycenter)
-					selected_vertex = rotation * (selected_vertex - proxy_cage.bbox.center()) + proxy_cage.bbox.center();
-					selected_vertex = scaling.cwiseProduct(selected_vertex - proxy_cage.bbox.center()) + proxy_cage.bbox.center();
-					// Then, translate
-					selected_vertex += translation;
+	/* Check if the render mode is one of ProxyMesh, TetMesh, or Off. 
+	If so, use ImGuizmo's Manipulate function to update the edit_matrix based on user input.*/
+	if(num_of_iterations < max_number_of_iterations){			//Limitatore di modifiche automatiche (altrimenti va in loop)	
+		if ((render_mode == ESelectionRenderMode::ProxyMesh 	//Modifica avviata solo dopo la costruzione della Cage
+		|| render_mode == ESelectionRenderMode::TetMesh 
+		|| render_mode == ESelectionRenderMode::Off) 
+/*		&&  ImGuizmo::Manipulate((const float*)&world2view, 	//fa apparire l'interfaccia di ImGuizmo per manipolare manualmente la deformazione
+		(const float*)&view2proj_guizmo, 
+		(ImGuizmo::OPERATION)m_gizmo_op, 
+		(ImGuizmo::MODE)m_gizmo_mode, 
+		(float*)&edit_matrix, NULL, NULL)*/
+		) {
+			//Avvia la modifica automatica solo se si passa dalla funzione select_cage_rect() oppure select_scribbling()
+			if (render_mode == ESelectionRenderMode::ProxyMesh && do_it_once==false) {	//CHECK DA SEMPLIFICARE ##############################################
+				for (int i = 0; i < proxy_cage.vertices.size(); i++) { 		//sembra ridondante, eppure non funziona togliendo questo for
+					proxy_cage.labels[i] = 1;
+							/*proxy_cage.colors[i] = Eigen::Vector3f(m_brush_color[0], m_brush_color[1], m_brush_color[2]);*/	//inutile, ma fa capire cosa è stato selezionato
 				}
-				proxy_cage.bbox.set_center(proxy_cage.bbox.center() + translation);
+				Eigen::Matrix<float, 4, 4> screen_selection;			//inizializzata con valori che sembrano comprendere l'intera schermata
+				screen_selection << 1030.0f, 0.0f, -900.0f, 1750.0f,	//Bisognerebbe testare questi valori anche su schermi grandi 4k
+									15.0f, -1000.0f, -475.0f, 1880.0f,
+									0.0f, 0.0f, 11.0f, 2.0f,
+									0.0f, 0.0f, 0.0f, 2.0f;
+				select_cage_rect(screen_selection);						//con select_scribbling non funziona siccome è legato alla posizione del mouse 
+				reset_cage_selection();									//resetto tutto per non lasciare tracce, l'importante è passare per questa parte di codice
+				do_it_once = true;										//il flag si potrebbe evitare con un do-while
 			}
-			else
-			{
-				for (const auto selected_vertex : cage_edition.selected_vertices) {
-					// Rotate (w.r.t. barycenter)
-					proxy_cage.vertices[selected_vertex] = rotation * (proxy_cage.vertices[selected_vertex] - cage_edition.selection_barycenter) + cage_edition.selection_barycenter;
-					// Scale (by rotating back, scaling and then rotation again)
-					proxy_cage.vertices[selected_vertex] = cage_edition.selection_rotation * scaling.cwiseProduct(cage_edition.selection_rotation.transpose() * (proxy_cage.vertices[selected_vertex] - cage_edition.selection_barycenter)) + cage_edition.selection_barycenter;
-					// Then, translate
-					proxy_cage.vertices[selected_vertex] += translation;
+			if (apply_all_edits_flag == true) {			//Il flag diventa True cliccando sul Button Apply_all_edits
+				edited_guizmo = true;
+				std::cout << "Number of edits of current Operator: " << num_of_iterations << " to "<< num_of_iterations+1 << std::endl;
+				num_of_iterations++;
+				matrix3_t guizmo_rotation;
+				point_t guizmo_translation;
+				point_t guizmo_scale = point_t(1.0f, 1.0f, 1.0f);
+				decompose_imguizmo_matrix<matrix3_t, point_t, float_t>(edit_matrix, guizmo_rotation, guizmo_translation, guizmo_scale);
+
+				//Vettore TRASLATION: scegli direzione e intensità dello spostamento del volume interno alla porzione di cage selezionata
+				//Sottrazione tra Coordinate punto guizmo spostato e Coordinate punto guizmo iniziale (baricentro) 
+				point_t translation = guizmo_translation - cage_edition.selection_barycenter;
+		/*		std::cout << "cage_edition.selection_barycenter vector: " << cage_edition.selection_barycenter << std::endl; 	
+				std::cout << "cage_edition.selection_rotation.transpose(): " << cage_edition.selection_rotation.transpose() << std::endl;  
+		*/      matrix3_t rotation = guizmo_rotation * cage_edition.selection_rotation.transpose();
+				point_t scaling = guizmo_scale.cwiseQuotient(cage_edition.selection_scaling);
+		/*		std::cout << "Initial Translation vector: " << translation << std::endl;  
+				std::cout << "Initial rotation matrix: " << rotation << std::endl;  
+		*/
+		/*		float theta = M_PI/48;
+				rotation << 1, 0, 0, 
+							0, cos(theta), -sin(theta), 
+							0, sin(theta), cos(theta);										//rotazione forzata rispetto all'asse x verso sinistra
+				guizmo_rotation << rotation * cage_edition.selection_rotation;				//Per rendere il valore Guizmo rotation coerente con la rotazione imposta
+				std::cout << "Final rotation matrix: " << rotation << std::endl;  
+		*/
+				translation << 0.000f, 0.2f, 0.000f; 										//modifica al vettore spostamento (modifica arbitraria, verso l'alto)
+				guizmo_translation << translation + cage_edition.selection_barycenter; 		//Rende il punto iniziale Guizmo coerente con lo spostamento, per la prossima modifica
+		//		std::cout << "Final Translation vector: " << translation << std::endl;  
+
+				// std::cout << m_rotation_matrix.determinat() << std::endl;
+				// m_scale = guizmo_scale.cwiseQuotient(m_selection_box.scale);
+
+				//Apply the transformation to the selected vertices, either rigidly or non-rigidly, depending on the value of  m_rigid_editing.
+				if (m_target == EManipulationTarget::CageVerts)
+				{
+					if (m_rigid_editing)				//non so come attivare questa parte di codice
+					{
+						for (auto& selected_vertex : proxy_cage.vertices) {
+							// Rotate (w.r.t. barycenter)
+							selected_vertex = rotation * (selected_vertex - proxy_cage.bbox.center()) + proxy_cage.bbox.center();
+							selected_vertex = scaling.cwiseProduct(selected_vertex - proxy_cage.bbox.center()) + proxy_cage.bbox.center();
+							// Then, translate
+							selected_vertex += translation;
+						}
+						proxy_cage.bbox.set_center(proxy_cage.bbox.center() + translation);
+					}
+					else
+					{
+						//Codice originale non più utile, lo lascio per testing futuro
+/*						for (const auto selected_vertex : cage_edition.selected_vertices) {
+							// Rotate (w.r.t. barycenter)
+							proxy_cage.vertices[selected_vertex] = rotation * (proxy_cage.vertices[selected_vertex] - cage_edition.selection_barycenter) + cage_edition.selection_barycenter;
+							// Scale (by rotating back, scaling and then rotation again)
+							proxy_cage.vertices[selected_vertex] = cage_edition.selection_rotation * scaling.cwiseProduct(cage_edition.selection_rotation.transpose() * (proxy_cage.vertices[selected_vertex] - cage_edition.selection_barycenter)) + cage_edition.selection_barycenter;
+							// Then, translate
+							proxy_cage.vertices[selected_vertex] += translation;
+						}
+*/						//Codice sostituito per applicare l'editing a tutti i vertici della cage e non solo a quelli selezionati in verde 		
+						for (auto& selected_vertex : proxy_cage.vertices) {
+							// Rotate (w.r.t. barycenter)
+							selected_vertex = rotation * (selected_vertex - cage_edition.selection_barycenter) + cage_edition.selection_barycenter;
+							// Scale (by rotating back, scaling and then rotation again)
+							selected_vertex = cage_edition.selection_rotation * scaling.cwiseProduct(cage_edition.selection_rotation.transpose() * (selected_vertex - cage_edition.selection_barycenter)) + cage_edition.selection_barycenter;
+							// Then, translate
+							selected_vertex += translation;
+						}
+					}
 				}
+				//Update the barycenter, rotation, and scaling of the selection based on the new transformation.
+				cage_edition.selection_barycenter = guizmo_translation;
+				cage_edition.selection_rotation = guizmo_rotation;
+				cage_edition.selection_scaling = guizmo_scale;
+
+				//If the m_update_tet_manipulation flag is enabled, update the tetrahedral mesh by interpolating the Poisson boundary and updating the mesh.
+				// If auto update is activated, perform it
+				if (m_update_tet_manipulation) {						//senza il codice sottostante, le modifiche non si propagano ai colori e al volume interno alla proxy_cage
+					// Only update if the tet mesh already exists!
+					if (tet_interpolation_mesh) {							
+						interpolate_poisson_boundary();						
+						update_tet_mesh();
+					}
+				}
+
+				//SI POTREBBE ATTIVARE UN FLAG QUI PER SWITCHARE OPERATORE DA testbed.cu
 			}
 		}
-        cage_edition.selection_barycenter = guizmo_translation;
-        cage_edition.selection_rotation = guizmo_rotation;
-		cage_edition.selection_scaling = guizmo_scale;
-
-		// If auto update is activated, perform it
-		if (m_update_tet_manipulation) {
-			// Only update if the tet mesh already exists!
-			if (tet_interpolation_mesh) {
-				interpolate_poisson_boundary();
-				update_tet_mesh();
-			}
-		}
-    }
+	}
 
     if (render_mode == ESelectionRenderMode::ScreenSelection) {
         if (ImGui::IsKeyDown(SCREEN_SELECTION_KEY) && io.MouseDown[0]) {
@@ -667,6 +776,7 @@ void GrowingSelection::color_selection() {
 	}
 }
 
+//Launched by GrowingSelection::select_scribbling  (ctrl+scroll wheel)
 inline bool GrowingSelection::is_near_mouse(const ImVec2& p)
 {
 	ImGuiIO& io = ImGui::GetIO();
@@ -692,6 +802,7 @@ inline bool GrowingSelection::is_inside_rect(const ImVec2& p) {
 	}
 }
 
+//Launched by clicking on ALT Button
 void GrowingSelection::reset_cage_selection() {
 	// In case of proxy mesh
     for (uint32_t i = 0; i < proxy_cage.labels.size(); i++) {
@@ -712,6 +823,7 @@ void GrowingSelection::reset_cage_selection() {
 	}
 }
 
+//Launched by canc button
 template<typename T>
 inline std::vector<T> erase_indices(const std::vector<T>& data, std::vector<size_t>& indicesToDelete/* can't assume copy elision, don't pass-by-value */)
 {
@@ -744,6 +856,7 @@ inline std::vector<T> erase_indices(const std::vector<T>& data, std::vector<size
     return ret;
 }
 
+//Launched by canc button
 void GrowingSelection::delete_selected_projection() {
 	std::vector<size_t> pixels_to_delete;
 	for (int i = 0; i < m_projected_pixels.size(); i++) {
@@ -761,6 +874,7 @@ void GrowingSelection::delete_selected_projection() {
 	reset_growing();
 }
 
+//Launched by canc button
 void GrowingSelection::delete_selected_growing() {
 	std::vector<size_t> points_to_delete;
 	for (int i = 0; i < m_selection_points.size(); i++) {
@@ -781,7 +895,9 @@ void GrowingSelection::delete_selected_growing() {
 	}
 }
 
+//Launched by ctrl+scroll wheel
 void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world2proj) {
+	//std::cout << "world2proj: " << world2proj << std::endl;			//per testare, da rimuovere
 	if (render_mode == ESelectionRenderMode::Projection) {
 		// Take every projected pixel and reproject it in screen space
 		uint32_t n_selected = 0;
@@ -825,10 +941,12 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 			const point_t& p = proxy_cage.vertices[i];
 			Eigen::Vector4f ph; ph << p.cast<float>(), 1.f;
 			Eigen::Vector4f pa = world2proj * ph;
-			ImVec2 o;
+			ImVec2 o;	
+			//If the projected vertex is behind the camera, it is skipped. 
 			if (pa.w() <= 0.f) continue;
 			o.x = pa.x() / pa.w();
 			o.y = pa.y() / pa.w();
+			//If the projected vertex is near the mouse cursor, it is marked as selected and its label and color are updated. 
 			if (is_near_mouse(o)) {
 				n_selected++;
 				proxy_cage.labels[i] = 1;
@@ -860,16 +978,35 @@ void GrowingSelection::select_scribbling(const Eigen::Matrix<float, 4, 4>& world
 			cage_edition.selection_rotation = matrix3_t::Identity();
 		}
 		cage_edition.selection_scaling = point_t::Ones();
+		
+		//Sostituito cage_edition.selection_barycenter IN MODO CHE NON DIPENDA DA UNA CAGE
+		//Sostituito cage_edition.selected_vertices con i punti rossi std::vector<Eigen::Vector3f> m_selection_points
+		//Compute the barycenter and rotation matrix of the selection
+		//std::cout << "cage_edition.selected_vertices size: " << cage_edition.selected_vertices.size() << std::endl;
+		//std::cout << "proxy_cage.vertices size: " << proxy_cage.vertices.size() << std::endl;
+
 		for (const auto selected_vertex : cage_edition.selected_vertices) {
 			cage_edition.selection_barycenter += proxy_cage.vertices[selected_vertex];
 		}
 		cage_edition.selection_barycenter /= cage_edition.selected_vertices.size();
 
-		// std::cout << "Selected " << n_selected << " out of " << proxy_cage.vertices.size() << " vertices" << std::endl;
+		//std::cout << "Selected " << n_selected <<  " out of " << proxy_cage.vertices.size() << " vertices" << std::endl;
+		//std::cout << "cage_edition.selection_barycenter ORIGINAL: " << cage_edition.selection_barycenter << std::endl;
+
+
+		for (const auto selected_point : m_selection_points) {
+			cage_edition.selection_barycenter += selected_point;
+		}
+		cage_edition.selection_barycenter /= m_selection_points.size();
+
+		//std::cout << "cage_edition.selection_barycenter MODIFICATA: " << cage_edition.selection_barycenter << std::endl;
+
 	}
 }
 
+//Voxel selection with Shift+Mouse Left Click
 void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2proj) {
+	//std::cout << "world2proj: " << world2proj << std::endl;				//per testare, da rimuovere
 	if (render_mode == ESelectionRenderMode::Projection) {
 		// Take every projected pixel and reproject it in screen space
 		uint32_t n_selected = 0;
@@ -925,7 +1062,7 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 				);
 			}
 		}
-		// Update the cage edition structure accordingly 
+		// Updates the cage edition structure by clearing the selected vertices and adding the newly selected vertices
 		cage_edition.selected_vertices.clear();
 		for (uint32_t i = 0; i < proxy_cage.vertices.size(); i++) {
 			if (proxy_cage.labels[i] == 1) {
@@ -946,17 +1083,37 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 			cage_edition.selection_rotation = matrix3_t::Identity();
 		}
 		cage_edition.selection_scaling = point_t::Ones();
+
+		//Sostituito cage_edition.selection_barycenter IN MODO CHE NON DIPENDA DA UNA CAGE
+		//Sostituito cage_edition.selected_vertices con i punti rossi std::vector<Eigen::Vector3f> m_selection_points
+		//Compute the barycenter and rotation matrix of the selection
+		//std::cout << "cage_edition.selected_vertices size: " << cage_edition.selected_vertices.size() << std::endl;
+		//std::cout << "proxy_cage.vertices size: " << proxy_cage.vertices.size() << std::endl;
+
 		for (const auto selected_vertex: cage_edition.selected_vertices) {
 			cage_edition.selection_barycenter += proxy_cage.vertices[selected_vertex];
 		}
 		cage_edition.selection_barycenter /= cage_edition.selected_vertices.size();
-		
-		// std::cout << "Selected " << n_selected <<  " out of " << proxy_cage.vertices.size() << " vertices" << std::endl;
+
+		//std::cout << "Selected " << n_selected <<  " out of " << proxy_cage.vertices.size() << " vertices" << std::endl;
+		//std::cout << "cage_edition.selection_barycenter ORIGINAL: " << cage_edition.selection_barycenter << std::endl;
+
+
+		for (const auto selected_point : m_selection_points) {
+			cage_edition.selection_barycenter += selected_point;
+		}
+		cage_edition.selection_barycenter /= m_selection_points.size();
+
+		//std::cout << "cage_edition.selection_barycenter MODIFICATA: " << cage_edition.selection_barycenter << std::endl;
+
 	}
 }
 
+//Launched wih compute 
 void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices)
 {
+	std::cout << "GrowingSelection::set_proxy_mesh()" << std::endl;
+
 	render_mode = ESelectionRenderMode::ProxyMesh;
 
 	// Create the associated cage!
@@ -978,7 +1135,10 @@ void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<
 	std::cout << "Computed proxy with " << points.size() << " vertices and " << indices.size() / 3 << " triangles" << std::endl;
 }
 
+//Launched by GrowingSelection::fix_proxy_mesh()
 void GrowingSelection::compute_proxy_mesh() {
+	std::cout << "GrowingSelection::compute_proxy_mesh()" << std::endl;
+
 	// If there is no selection mesh, extract it!
 	if (selection_mesh.vertices.size() == 0) {
 		extract_fine_mesh();
@@ -998,7 +1158,7 @@ void GrowingSelection::compute_proxy_mesh() {
 	Eigen::MatrixXi input_F(n_indices / 3, 3);
 	for (int i = 0; i < n_verts; i++) {
 		input_V.row(i) = selection_mesh.vertices[i].cast<double>();
-	}
+	}	
 	for (int i = 0; i < n_indices / 3; i++) {
 		input_F.row(i) << selection_mesh.indices[3*i], selection_mesh.indices[3*i+2], selection_mesh.indices[3*i+1];
 	}
@@ -1184,6 +1344,7 @@ void GrowingSelection::proxy_mesh_from_file(std::string orig_file)
 	// std::cout << "Fixed proxy cage with meshfix" << std::endl;
 }
 
+//GUI Button "Compute Proxy" First function
 void GrowingSelection::fix_proxy_mesh() {
 	// If there is no proxy, extract one!
 	if (proxy_cage.vertices.size() == 0) {
@@ -1201,7 +1362,9 @@ void GrowingSelection::fix_proxy_mesh() {
 		std::cout << "Meshfix had nothing to fix" << std::endl;
 		return;
 	}
-
+	//To store the vertices and indices of the proxy_cage, 
+	//It loops through the vertices and indices of the "proxy_cage" 
+	//and assigns their values to the corresponding rows of the Eigen matrices
 	Eigen::MatrixXd input_V(n_verts, 3);
 	Eigen::MatrixXi input_F(n_indices / 3, 3);
 	for (int i = 0; i < n_verts; i++) {
@@ -1210,6 +1373,7 @@ void GrowingSelection::fix_proxy_mesh() {
 	for (int i = 0; i < n_indices / 3; i++) {
 		input_F.row(i) << proxy_cage.indices[3*i], proxy_cage.indices[3*i+1], proxy_cage.indices[3*i+2];
 	}
+
 	Eigen::MatrixXd output_V;
 	Eigen::MatrixXi output_F;
 	meshfix(input_V, input_F, output_V, output_F);
@@ -1231,15 +1395,16 @@ void GrowingSelection::fix_proxy_mesh() {
 
 	// Create the associated cage!
     proxy_cage = Cage<float_t, point_t>(new_vertices_proxy, new_indices_proxy);
+	std::cout << "Proxy cage Created!" << std::endl;
 
+	//Set the proxy mesh using the new vertices and indices
     for (int i = 0; i < proxy_cage.colors.size(); i++) {
         proxy_cage.colors[i] = Eigen::Vector3f(
             m_cage_color[0],
             m_cage_color[1],
             m_cage_color[2]);
     }
-
-	// std::cout << "Fixed proxy cage with meshfix" << std::endl;
+	std::cout << "Fixed proxy cage with meshfix" << std::endl;
 }
 
 void GrowingSelection::clear() {
@@ -1832,18 +1997,23 @@ __global__ void composite_shot_rays(
 	// accumulated_features[i] = feature_ray;
 }
 
+//GUI Button "Project" in Cage Deformation B B B B FONDAMENTALE PER SCRIBBLING
+//Project the selected pixels using rays and then update the growing selection based on the projection results. 
 void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray_pixels, const Vector2i& resolution, const Vector2f& focal_length,  const Matrix<float, 3, 4>& camera_matrix, const Vector2f& screen_center, cudaStream_t stream) {
 	uint32_t n_rays = ray_pixels.size();
 	if (n_rays == 0) {
 		return;
 	}
 	
+	std::cout << "GrowingSelection::project_selection_pixels()" << std::endl;
+
 	const uint32_t padded_output_width = m_nerf_network->padded_output_width();
 	const uint32_t padded_density_output_width = m_nerf_network->padded_density_output_width();
 	const uint32_t floats_per_coord = sizeof(NerfCoordinate) / sizeof(float) + m_nerf_network->n_extra_dims();
 	const uint32_t extra_stride = m_nerf_network->n_extra_dims() * sizeof(float); // extra stride on top of base NerfCoordinate struct
 	const uint32_t max_samples = n_rays * NERF_STEPS();
 
+	//Allocate GPU memory for various data structures
 	tcnn::GPUMemoryArena::Allocation alloc;
 	auto scratch = allocate_workspace_and_distribute<
 		uint32_t, // ray_indices
@@ -1874,6 +2044,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 		n_rays
 	);
 
+	//Copy the input ray_pixels data to the GPU memory and initialize ray_counter and numsteps_counter with zeros
 	uint32_t* ray_indices = std::get<0>(scratch);
 	Ray* rays = std::get<1>(scratch);
 	uint32_t* numsteps = std::get<2>(scratch);
@@ -1894,6 +2065,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 
+	//Compute the rays, number of steps, and coordinates for each ray
 	linear_kernel(shoot_selection_rays_kernel, 0, stream,
 		n_rays,
 		pixels,
@@ -1915,6 +2087,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 
+	//Copy the results from the GPU memory back to the host memory
 	// TODO: pass NerfPosition rather than NerfCoordinate
 	std::vector<NerfCoordinate> coords_host(max_samples, NerfCoordinate(Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), 0.f));
 
@@ -1926,6 +2099,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 	CUDA_CHECK_THROW(cudaMemcpyAsync(coords_host.data(), coords, max_samples * floats_per_coord * sizeof(float), cudaMemcpyDeviceToHost, stream));
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 
+	//Check if any rays were found
 	if (numsteps_counter_host == 0) {
 		std::cout << "Couldn't find surface when shooting rays..." << std::endl;
 		return;
@@ -1934,8 +2108,10 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 	tcnn::GPUMatrix<float> coords_matrix((float*)coords, floats_per_coord, max_samples);
 	tcnn::GPUMatrix<network_precision_t> sigmafeature_matrix(mlp_out, padded_output_width, max_samples);
 
+	//Compute the density values for the coordinates
 	m_nerf_network->density(stream, coords_matrix, sigmafeature_matrix, false);
 
+	//Compute the projected coordinates, grid indices and accumulated features
 	linear_kernel(composite_shot_rays, 0, stream,
 		n_rays,
 		m_aabb,
@@ -1954,6 +2130,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 		// accumulated_features
 	);
 
+	//Copy the results back to the host memory
 	std::vector<uint32_t> grid_indices_host_tmp;
 	std::vector<uint32_t> grid_mips_host_tmp;
 	std::vector<Eigen::Vector3f> m_projected_pixels_tmp;
@@ -1969,6 +2146,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 
 	// printf("Shot %u rays but counted %u only.\n", n_rays, ray_counter_host);
 
+	//Update the m_growing_level based on the maximum level found in the grid indices
 	// If automatic level selection is on, we need to find the maximum level and set the growing level accordingly
 	if (m_automatic_max_level) {
 		m_growing_level = 0;
@@ -1984,41 +2162,57 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 		}
 	}
 
+	std::cout << "ray_counter_host: " << ray_counter_host << std::endl;
+	std::cout << "m_projected_pixels_tmp size: " << m_projected_pixels_tmp.size() << std::endl;
+	
 	// Set to avoid duplicate cell_idx
 	std::set<uint32_t> cell_idx_set;
-
-	// Check for rays that did not reach transmittance
+	//Loop through the rays and update the projected cell indices, projected pixels, projected labels, and the cell index set
+	// Check for rays that did not reach transmittance and discards them if they are outside the requested level
 	// TODO: do something cleaner here...
 	for (int i = 0; i< ray_counter_host; i++) {
-		if (m_aabb.contains(m_projected_pixels_tmp[i])) {
-			uint32_t level = grid_indices_host_tmp[i] / NERF_GRIDVOLUME();
+			//Check if the current pixel is within the AABB
+			if (m_aabb.contains(m_projected_pixels_tmp[i])) {
+				//Get the level of the current grid index
+				uint32_t level = grid_indices_host_tmp[i] / NERF_GRIDVOLUME();
+//				std::cout << "Pixel " << i << "is within the AABB" << std::endl;
+				//If the level is greater than the growing level, discard it
+				// NOTE: should not happen with automatic level selection
+				if (level > m_growing_level) {
+//				std::cout << "Level is greater than the growing level: skipped: " << (level > m_growing_level) << std::endl;
+					continue;
+				}
 
-			// If it's bigger than the requested level, discard it
-			// NOTE: should not happen with automatic level selection
-			if (level > m_growing_level) {
-				continue;
+				//Get the cell index
+				uint32_t cell_idx = grid_indices_host_tmp[i];
+				//If the level is less than the growing level, uplift the cell index
+				if (level < m_growing_level) {
+					cell_idx = get_upper_cell_idx(cell_idx, m_growing_level);
+//					std::cout << "Updated cell_idx: " << std::endl;
+
+				};
+				//Get the level of the updated cell index
+				level = cell_idx / NERF_GRIDVOLUME();
+				//If the cell index is already in the set, discard it
+				if (cell_idx_set.count(cell_idx) > 0) {
+//					std::cout << "Skipped, already in the set " << std::endl;
+					continue;
+				}
+
+				//printf("Index ray: %u (%u)\n", cell_idx, NERF_GRIDVOLUME());
+
+				//Add the cell index, pixel, and label to their respective vectors
+				m_projected_cell_idx.push_back(cell_idx);
+				m_projected_pixels.push_back(m_projected_pixels_tmp[i]);
+				//m_projected_features.push_back(m_projected_features_tmp[i]);
+				m_projected_labels.push_back(0);
+				//Add the cell index to the set
+				cell_idx_set.insert(cell_idx);
+//				std::cout << "Cell " << i << "added" << std::endl;
 			}
-			uint32_t cell_idx = grid_indices_host_tmp[i];
-			// If it is smaller then uplift!
-			if (level < m_growing_level) {
-				cell_idx = get_upper_cell_idx(cell_idx, m_growing_level);
-			};
-
-			level = cell_idx / NERF_GRIDVOLUME();
-
-			if (cell_idx_set.count(cell_idx) > 0) {
-				continue;
-			}
-
-			// printf("Index ray: %u (%u)\n", cell_idx, NERF_GRIDVOLUME());
-
-			m_projected_cell_idx.push_back(cell_idx);
-			m_projected_pixels.push_back(m_projected_pixels_tmp[i]);
-			// m_projected_features.push_back(m_projected_features_tmp[i]);
-			m_projected_labels.push_back(0);
-			cell_idx_set.insert(cell_idx);
-		}
 	}
+
+	//Update the n_rays variable based on the size of the m_projected_cell_idx vector
 	n_rays = m_projected_cell_idx.size(); // Update n_rays accordingly
 	if (n_rays == 0) {
 		std::cout << "Couldn't find surface when shooting rays..." << std::endl;
@@ -2026,7 +2220,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 	}
 	std::cout << "Reprojected " << n_rays << " rays" << std::endl;
 	
-	// Clear selected pixels after projection
+	//Clear the selected pixels and reset the growing selection
 	m_selected_pixels.clear();
     m_selected_pixels_imgui.clear();
 
@@ -2034,6 +2228,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 	reset_growing();
 }
 
+//Launched by GrowingSelection::project_selection_pixels()
 void GrowingSelection::reset_growing() {
 
 	cage_edition.selected_vertices.clear();
@@ -2066,10 +2261,9 @@ void GrowingSelection::upscale_growing() {
 	m_growing_level = m_region_growing.growing_level();
 }
 
-void GrowingSelection::grow_region() {
-	
-	m_region_growing.grow_region(m_density_threshold, m_region_growing_mode, m_growing_level, m_growing_steps);
-
+//GUI Button "Grow region" and "Grow Far", first function
+void GrowingSelection::grow_region(bool ed_flag, int growing_steps) {
+	m_region_growing.grow_region(ed_flag, m_density_threshold, m_region_growing_mode, m_growing_level, growing_steps);
 	m_selection_grid_bitfield = m_region_growing.selection_grid_bitfield();
 	m_selection_points = m_region_growing.selection_points();
 	m_selection_cell_idx = m_region_growing.selection_cell_idx();
@@ -2080,13 +2274,16 @@ void GrowingSelection::grow_region() {
 }
 
 void GrowingSelection::dilate() {
-	
+	//Aggiungere parametri alla funzione dilate per poi passarli al dilate interno
 	m_selection_grid_bitfield = m_MM_operations->dilate(m_selection_grid_bitfield, m_growing_level, m_selection_points, m_selection_cell_idx);
 
 	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
 }
 
+
 void GrowingSelection::erode() {
+	//Aggiungere parametri alla funzione erode per poi passarli al erode interno
+
 	m_selection_grid_bitfield = m_MM_operations->erode(m_selection_grid_bitfield, m_growing_level, m_selection_points, m_selection_cell_idx);
 
 	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
@@ -2094,6 +2291,7 @@ void GrowingSelection::erode() {
 
 // TODO: work directly on the bitfield computed before instead of float (we have a 0/1 occupancy field)
 void GrowingSelection::extract_fine_mesh() {
+	std::cout << "GrowingSelection::extract_fine_mesh()" << std::endl;
 
 	// Make sure dilation erosion are performed before extracting the mesh 
 	if (m_use_morphological && !m_performed_closing) {
@@ -2217,11 +2415,14 @@ __global__ void filter_empty(
 	}
 }
 
+//is_inside indicates whether the computation should be done inside or outside the proxy cage  
 void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
+	//Check if the proxy cage has any vertices. If not, print a message and return.
 	if (proxy_cage.vertices.size() == 0) {
 		std::cout << "Computing boundary values requires a proxy cage..." << std::endl;
 		return;
 	}
+	//Set the vertices variable to either the original vertices or the proxy cage vertices.
 	const std::vector<point_t>& vertices = is_inside ? proxy_cage.original_vertices : proxy_cage.vertices;
 	const uint32_t n_verts = vertices.size();
 	const uint32_t n_sh_samples = m_poisson_editing.sh_sampling_width *  m_poisson_editing.sh_sampling_width;
@@ -2232,12 +2433,16 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 	const uint32_t n_samples = n_verts * n_sh_samples;
 	const uint32_t n_elements = next_multiple(n_samples, tcnn::batch_size_granularity); // ensure batch sizes have the right granularity
 
+	// Create a vector called coords_host to store the sampling coordinates. 
 	// Initialize sampling coords first
 	std::vector<float> coords_host(n_samples * floats_per_coord);
+	// Initialize a pitched pointer to this vector.
 	PitchedPtr<NerfCoordinate> coords_host_ptr = PitchedPtr<NerfCoordinate>((NerfCoordinate*)coords_host.data(), 1, 0, extra_stride);
+	// Loop through all the vertices and SH samples.
 	for (uint32_t k = 0; k < n_verts; k++) {
 		for (uint32_t i = 0; i < m_poisson_editing.sh_sampling_width; i++) {
 			for (uint32_t j = 0; j < m_poisson_editing.sh_sampling_width; j++) {
+				// Compute the Cartesian components for each point, and store them in the coords_host vector.
 				/* We now find the cartesian components for the point (i,j) */
 				float u,v,theta,phi,x,y,z;
 				
@@ -2259,8 +2464,9 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 		}
 	}
 
-	// std::cout << "Sampled coordinates..." << std::endl;
+	//std::cout << "Sampled coordinates..." << std::endl;
 
+	// Allocate GPU memory for the coordinates, MLP output, RGB output, and density output. 
 	tcnn::GPUMemoryArena::Allocation alloc;
 	auto scratch = allocate_workspace_and_distribute<
 		float, // coords
@@ -2285,12 +2491,12 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 	GPUMatrix<float> coord_matrix((float*)coords, (sizeof(NerfCoordinate) + extra_stride) / sizeof(float), n_elements);
 	GPUMatrix<network_precision_t> rgbsigma_matrix((network_precision_t*)mlp_out, padded_output_width, n_elements);
 	
-	// Perform inference
+	// Perform inference on the neural network with the input coordinates and store the output in the rgbsigma_matrix.
 	m_nerf_network->inference_mixed_precision(m_stream, coord_matrix, rgbsigma_matrix);
 
-	// std::cout << "Performed inference..." << std::endl;
+	//std::cout << "Performed inference..." << std::endl;
 
-	// Activate output
+	// Activate the network output using a linear kernel function and store the results in the RGB and density outputs. 
 	linear_kernel(activate_network_output, 0, m_stream,
 		n_samples,
 		padded_output_width,
@@ -2300,6 +2506,7 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 		rgb_out,
 		density_out);
 
+	// Filter out empty samples using another linear kernel function.
 	if (is_inside)
 	{
 		linear_kernel(filter_empty, 0, m_stream,
@@ -2315,12 +2522,12 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 	std::vector<Array3f> rgb_host(n_samples);
 	std::vector<float> density_host(n_samples);
 
-	// Copy back to host
+	// Copy back RGB and density outputs to host
 	CUDA_CHECK_THROW(cudaMemcpyAsync(rgb_host.data(), rgb_out, n_samples*sizeof(Eigen::Array3f), cudaMemcpyDeviceToHost, m_stream));
 	CUDA_CHECK_THROW(cudaMemcpyAsync(density_host.data(), density_out, n_samples*sizeof(float), cudaMemcpyDeviceToHost, m_stream));
 	CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream));
 
-	// Store density
+	// Store the density values in the appropriate target density vector (inside or outside the proxy cage).
 	std::vector<float>& target_density = is_inside ? proxy_cage.inside_density : proxy_cage.outside_density;
 	target_density.resize(n_verts);
 	for (int k = 0; k < n_verts; k++) {
@@ -2330,6 +2537,8 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 		// std::cout << "Density: " << target_density[k] << std::endl;
 	}
 
+	// Resize the target spherical harmonics (SHs) vector 
+	// and loop through all the vertices to compute the averaged SHs for each vertex.
 	// Fit SHs with samples
 	std::vector<SH9RGB>& target_shs = is_inside ? proxy_cage.inside_shs : proxy_cage.outside_shs;
 	target_shs.resize(n_verts);
@@ -2339,6 +2548,7 @@ void GrowingSelection::compute_poisson_boundary(const bool is_inside) {
 			averaged_sh += project_sh9(unwarp_direction(coords_host_ptr(k*n_sh_samples+i)->dir.d), rgb_host[k*n_sh_samples+i]);
 		}
 		averaged_sh *= 4*M_PI / (n_sh_samples);
+		// Store the computed SHs in the target SHs vector.
 		target_shs[k] = averaged_sh;
 		// std::cout << "Evaluated color: " << evaluate_sh9(averaged_sh, Eigen::Vector3f(0.f, 0.f, 1.f)) << std::endl;
 		// proxy_cage.colors[k] = evaluate_sh9(averaged_sh, Eigen::Vector3f(0.f, 0.f, 1.f));
@@ -2454,6 +2664,17 @@ void GrowingSelection::generate_poisson_cube_map() {
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, DEBUG_CUBEMAP_WIDTH, DEBUG_CUBEMAP_WIDTH, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_image);
 	
 	}	
+}
+
+void GrowingSelection::grow_and_cage() {
+	grow_region(false, get_m_growing_steps());
+	render_mode = ESelectionRenderMode::RegionGrowing;
+	
+	if (m_selection_grid_bitfield.size() > 0){
+			fix_proxy_mesh();
+			update_tet_mesh();
+			interpolate_poisson_boundary();
+	}
 }
 
 void GrowingSelection::to_json(nlohmann::json& j) {
