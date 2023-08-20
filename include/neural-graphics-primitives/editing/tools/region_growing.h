@@ -48,8 +48,8 @@ public:
     uint32_t growing_level() const {
         return m_growing_level;
     }
-    //ANCORA NON UTILIZZATI, PER ORA INUTILI----------------------------------
-    int get_min_ed_points_threshold() {
+    
+    int get_min_ed_points_threshold() {             //utile solo per stampa debug
         return min_ed_points_threshold;
     }
 
@@ -57,7 +57,7 @@ public:
         min_ed_points_threshold = value;
     }
 
-    int get_max_ed_points_limit() {
+    int get_max_ed_points_limit() {                 //utile solo per stampa debug
         return max_ed_points_limit;
     }
 

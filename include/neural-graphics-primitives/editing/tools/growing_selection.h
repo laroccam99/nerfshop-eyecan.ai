@@ -201,10 +201,14 @@ struct GrowingSelection {
     }
 
     void GrowingSelection::set_max_ed_points(int max_num_operators) {
-        std::cout << "max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
+        std::cout << "Initial max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
         m_region_growing.set_max_ed_points_limit(max_num_operators);
         m_region_growing.set_min_ed_points_threshold(max_num_operators);
-        std::cout << "max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
+        std::cout << "Final max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
+    }
+
+    void set_render_mode_to_RG() {
+        render_mode = ESelectionRenderMode::RegionGrowing; 
     }
 
     void grow_and_cage();
