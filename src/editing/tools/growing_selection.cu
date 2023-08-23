@@ -123,11 +123,12 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			render_mode = ESelectionRenderMode::Projection;
 	}
 	ImGui::SameLine(); 
-	if(ImGui::Button("LilSplit")) {
+	//Aggiunge un punto arbitrario ma non permette il growing (e anche la costruzione della cage)
+	if(ImGui::Button("LilSplit")) {	
 		std::cout << "############################## LilSplit Button " << std::endl;
 		reset_growing();
 
-		//L'indice va scelto in modo che sia compatibile con le coordinate 
+		//L'indice va scelto in modo che sia compatibile con le coordinate (grande problema): se uscisse dallo scribbling, funzionerebbe
 		int current_cell_idx = 3842063;									//scelto in modo che dia una current_density + alta del threshold
 		std::cout << "current_cell_idx: " << current_cell_idx << std::endl;
 
@@ -138,9 +139,11 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 		Eigen::Vector3f test_selection_point(0.0546875, 0.773438, 1.02344);			//coordinate inventate(centro dell'orecchio della volpe)
 		add_ppoint_to_op(current_cell_idx, test_selection_point);
 
+		//Serve modificare render_mode siccome solo post-Scribbling passa in Projection, quindi bisogna forzarlo
 		render_mode = ESelectionRenderMode::Projection;
 	}
 	ImGui::SameLine(); 
+	//Funziona solo post-scribbling: lascia solo 1 punto tra quelli proiettati, permette growing, costruzione cage e spostamento
 	if(ImGui::Button("RemoveBut1")) {
 		std::cout << "############################## RemoveBut1 Button " << std::endl;
 		Eigen::Vector3f test_projection_point;
@@ -152,18 +155,21 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			test_projection_idx = m_projected_cell_idx[i];
 			test_projection_label = m_projected_labels[i];
 		}
+		//Rimuove tutti gli altri punti per precauzione
         m_projected_pixels.clear();
         m_projected_cell_idx.clear();
 		m_projected_labels.clear();
-
+		//Aggiunge solo il punto desiderato
         m_projected_pixels.push_back(test_projection_point);
         m_projected_cell_idx.push_back(test_projection_idx);
         m_projected_labels.push_back(test_projection_label);          
 			
+		//Stampa di debug, da rimuovere
 		std::cout << "current_cell_idx: " << test_projection_idx << std::endl;
 		std::cout << "test_selection_point: " << test_projection_point << std::endl;
 
-		//render_mode = ESelectionRenderMode::Projection;
+		//Non serve modificare render_mode siccome è già in Projection (post-scribbling) e si aggiorna automaticamente all'avvio del growing
+		//render_mode = ESelectionRenderMode::Projection;		
 	}
 	bool growing_allowed = m_projected_cell_idx.size() > 0 || m_selection_points.size() > 0;
 	if (growing_allowed) {
@@ -604,7 +610,8 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 		(ImGuizmo::MODE)m_gizmo_mode, 
 		(float*)&edit_matrix, NULL, NULL)*/
 		) {
-			//Avvia la modifica automatica solo se si passa dalla funzione select_cage_rect() oppure select_scribbling()
+			//Siccome la modifica automatica viene avviata solo se si passa dalla funzione select_cage_rect() oppure select_scribbling()
+			//Simula l'utilizzo della funzione select_cage_rect() se do_it_once==false
 			if (render_mode == ESelectionRenderMode::ProxyMesh && do_it_once==false) {	//CHECK DA SEMPLIFICARE ##############################################
 				for (int i = 0; i < proxy_cage.vertices.size(); i++) { 		//sembra ridondante, eppure non funziona togliendo questo for
 					proxy_cage.labels[i] = 1;
@@ -617,7 +624,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 									0.0f, 0.0f, 0.0f, 2.0f;
 				select_cage_rect(screen_selection);						//con select_scribbling non funziona siccome è legato alla posizione del mouse 
 				reset_cage_selection();									//resetto tutto per non lasciare tracce, l'importante è passare per questa parte di codice
-				do_it_once = true;										//il flag si potrebbe evitare con un do-while
+				do_it_once = true;										//il flag si potrebbe evitare con un do-while, ma almeno così è resettabile
 			}
 			if (apply_all_edits_flag == true) {			//Il flag diventa True cliccando sul Button Apply_all_edits
 				std::cout << "Number of edits of current Operator: " << num_of_iterations << " to ";

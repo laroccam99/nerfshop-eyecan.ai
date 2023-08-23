@@ -192,14 +192,18 @@ struct GrowingSelection {
 
 	void set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices);
 
+    //Utilizzato dal Button Grow Far
     int get_m_grow_far_steps(){
         return m_grow_far_steps;
     }
 
-    int get_m_growing_steps(){
+    //Utilizzato dal Button Grow Region e Grow&Cage
+    int get_m_growing_steps(){ 
         return m_growing_steps;
     }
 
+    //Permette di sincronizzare il numero di operatori con il numero di punti output del Grow Far
+    //Metodo utilizzato con lo Start Button quando vengono creati i max_num_operators (in testbed.cu), chiamato da add_edit_operator() 
     void GrowingSelection::set_max_ed_points(int max_num_operators) {
         std::cout << "Initial max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
         m_region_growing.set_max_ed_points_limit(max_num_operators);
@@ -207,35 +211,30 @@ struct GrowingSelection {
         std::cout << "Final max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
     }
 
-    const tcnn::GPUMemory<float>& get_m_density_grid(){
-        return m_density_grid;
-    }
-
     //Avviato per ogni operatore dal Button Split
     void add_ppoint_to_op(std::uint32_t first_id, Eigen::Vector3f first_selection_point) {
-        //GrowingSelection::clear();
         m_projected_pixels.clear();
         m_projected_labels.clear();
         m_projected_cell_idx.clear();
-
-        //m_selection_points.clear();
-        //m_selection_labels.clear();
-        //m_selection_cell_idx.clear();
 
         m_projected_pixels.push_back(first_selection_point);
         m_projected_labels.push_back(0);       
         m_projected_cell_idx.push_back(first_id);
 
+        //Il grow_region() necessita di una growing_queue non empty
         m_region_growing.add_to_m_growing_queue(first_id);		//uguale a m_projected_cell_idx
 
+        //Utile solo per stampa debug, da rimuovere
         std::queue<uint32_t> queue = m_region_growing.get_m_growing_queue();
         std::cout << "Punto aggiunto all'operatore corrente: " << (queue.size() > 0 ? true : false) << std::endl;
     }
 
+    //Per il singolo operatore combina il growing e la costruzione della cage
     void grow_and_cage();
 
+    //Modifica il flag che permette le modifiche automaticamente quando è true
     void set_apply_all_edits_flag(bool value){
-        if (value == true) {            //AGGIUNGERE CHECK CHE CONTROLLA ESISTENZA DELLA CAGE
+        if (value == true) {            //AGGIUNGERE CHECK CHE CONTROLLA ESISTENZA DELLA CAGE, (evitabile date le circostanze)
             apply_all_edits_flag = true;
             std::cout << "Current Operator apply_all_edits_flag: " << (apply_all_edits_flag ? "true" : "false") << std::endl;
         }else {
@@ -244,6 +243,7 @@ struct GrowingSelection {
         }
     }
 
+    //Utilizzato solo per stampa debug, da rimuovere
     bool get_apply_all_edits_flag(){
         return apply_all_edits_flag;
     }
@@ -285,7 +285,7 @@ private:
     bool m_automatic_max_level = true;
     uint32_t m_max_cascade;
 
-    // Projected pixels
+    // Projected pixels (post-scribbling)
     std::vector<Eigen::Vector3f> m_projected_pixels;
     std::vector<uint8_t> m_projected_labels;
     std::vector<uint32_t> m_projected_cell_idx;

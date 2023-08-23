@@ -147,9 +147,11 @@ void RegionGrowing::grow_region(bool ed_flag, float density_threshold, ERegionGr
             i++;
         }
  
-        //SI POTREBBE AGGIUNGERE QUI UN CONTROLLO SUI DUPLICATI
+        //SI POTREBBE AGGIUNGERE QUI UN CONTROLLO SUI PUNTI DUPLICATI POST GROWING
 		//aggiungere tutto ad un set e poi assegnare il contenuto a m_selection_points, 
         //ma bisognerebbe anche sistemare m_selection_cell_idx e m_selection_grid_bitfield
+
+        //Si prosegue solo con il Grow Far Button
         if(ed_flag){
             equidistant_points(min_ed_points_threshold);
         }    
@@ -168,8 +170,8 @@ bool not_zero_coordinate(Eigen::Vector3f point_to_check) {
     }
 }
 
-//DA FIXARE, NON PRENDE PUNTI DISTANTI IN TERMINI DI COORDINATE##########################################################################################à
-//Codice aggiunto per selezionare in modo uniforme solo alcuni punti superficiali distanti; si ferma al raggiungimento della soglia minima
+//DA FIXARE, NON PRENDE SEMPRE PUNTI DISTANTI IN TERMINI DI COORDINATE######################################################################
+//Seleziona in modo uniforme solo alcuni punti superficiali distanti; si ferma al raggiungimento della soglia minima
 void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
     std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
     //Vettori temporanei 
@@ -190,19 +192,20 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
         if ((count % interval == 0) && (not_zero_coordinate(m_selection_points[i]))) {
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
+            //Aggiornamento Mappa utilizzata dallo SPLIT Button
             selection_mapObj.add_to_privateMap(m_selection_cell_idx[i], m_selection_points[i]);        
             //vstd::cout << "Growing point added: "<< i << " with id: " << id << std::endl;
         }
         count++;
     }
 
-    // Sostituisci i vecchi vettori con quelli aggiornati
+    // Sostituisce i vecchi vettori con quelli aggiornati
     m_selection_points = m_temp_points;
     m_selection_cell_idx = m_temp_idx;
     std::cout << "POST m_selection_points size: "<< m_selection_points.size() << std::endl;
 }  
 
-//DA FIXARE, NON PRENDE PUNTI DISTANTI IN TERMINI DI COORDINATE##########################################################################################à
+//DA FIXARE, NON PRENDE SEMPRE PUNTI DISTANTI IN TERMINI DI COORDINATE######################################################################
 //Seleziona in modo uniforme solo alcuni punti superficiali distanti; intervallo scelto dall'utente; continua finchè non supera la soglia minima
 void RegionGrowing::equidistant_points(int min_ed_points_threshold, int interval) {
     std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;

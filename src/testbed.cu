@@ -1171,7 +1171,7 @@ void Testbed::imgui() {
 				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
 				std::cout << "Number of operators: " << operators.size() << std::endl;
 
-				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "Add operator Cage"
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
 				for (int i = 0; i < operators.size(); ++i) {
 					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
 					
