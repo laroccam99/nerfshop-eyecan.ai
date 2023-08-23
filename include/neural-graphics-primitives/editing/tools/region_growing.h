@@ -48,6 +48,10 @@ public:
     uint32_t growing_level() const {
         return m_growing_level;
     }
+
+    void set_growing_level(uint32_t value) {
+        m_growing_level = value;
+    }
     
     int get_min_ed_points_threshold() {             //utile solo per stampa debug
         return min_ed_points_threshold;
@@ -64,7 +68,15 @@ public:
     void set_max_ed_points_limit(int value) {
         max_ed_points_limit = value;
     }
-    //----------------------------------------------------------------------
+
+    std::queue<uint32_t> get_m_growing_queue() {             //utile solo per stampa debug
+        return m_growing_queue;
+    }
+
+    void add_to_m_growing_queue(int value) {
+        m_growing_queue.push(value);
+    }
+
     void upscale_selection(int current_level);
 
     void grow_region(bool ed_flag, float density_threshold, ERegionGrowingMode region_growing_mode, int growing_level, int growing_steps);
@@ -95,7 +107,6 @@ private:
     std::vector<uint32_t> m_selection_cell_idx;
     std::vector<float> m_density_grid_host;
     std::queue<uint32_t> m_growing_queue;
-
 };
 
 NGP_NAMESPACE_END

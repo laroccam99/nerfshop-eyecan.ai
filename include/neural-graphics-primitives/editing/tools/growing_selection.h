@@ -207,8 +207,29 @@ struct GrowingSelection {
         std::cout << "Final max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
     }
 
-    void set_render_mode_to_RG() {
-        render_mode = ESelectionRenderMode::RegionGrowing; 
+    const tcnn::GPUMemory<float>& get_m_density_grid(){
+        return m_density_grid;
+    }
+
+    //Avviato per ogni operatore dal Button Split
+    void add_ppoint_to_op(std::uint32_t first_id, Eigen::Vector3f first_selection_point) {
+        //GrowingSelection::clear();
+        m_projected_pixels.clear();
+        m_projected_labels.clear();
+        m_projected_cell_idx.clear();
+
+        //m_selection_points.clear();
+        //m_selection_labels.clear();
+        //m_selection_cell_idx.clear();
+
+        m_projected_pixels.push_back(first_selection_point);
+        m_projected_labels.push_back(0);       
+        m_projected_cell_idx.push_back(first_id);
+
+        m_region_growing.add_to_m_growing_queue(first_id);		//uguale a m_projected_cell_idx
+
+        std::queue<uint32_t> queue = m_region_growing.get_m_growing_queue();
+        std::cout << "Punto aggiunto all'operatore corrente: " << (queue.size() > 0 ? true : false) << std::endl;
     }
 
     void grow_and_cage();

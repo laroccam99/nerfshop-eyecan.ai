@@ -122,6 +122,49 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 		if (m_projected_cell_idx.size() > 0)
 			render_mode = ESelectionRenderMode::Projection;
 	}
+	ImGui::SameLine(); 
+	if(ImGui::Button("LilSplit")) {
+		std::cout << "############################## LilSplit Button " << std::endl;
+		reset_growing();
+
+		//L'indice va scelto in modo che sia compatibile con le coordinate 
+		int current_cell_idx = 3842063;									//scelto in modo che dia una current_density + alta del threshold
+		std::cout << "current_cell_idx: " << current_cell_idx << std::endl;
+
+		uint32_t g_l = current_cell_idx / (NERF_GRIDVOLUME());
+		std::cout << "growing_level: " << g_l << std::endl;
+		m_region_growing.set_growing_level(g_l);
+
+		Eigen::Vector3f test_selection_point(0.0546875, 0.773438, 1.02344);			//coordinate inventate(centro dell'orecchio della volpe)
+		add_ppoint_to_op(current_cell_idx, test_selection_point);
+
+		render_mode = ESelectionRenderMode::Projection;
+	}
+	ImGui::SameLine(); 
+	if(ImGui::Button("RemoveBut1")) {
+		std::cout << "############################## RemoveBut1 Button " << std::endl;
+		Eigen::Vector3f test_projection_point;
+		uint32_t test_projection_idx;
+		int test_projection_label;
+
+		for (int i = 0; i<1; i++) {			//prendo solo il primo punto
+			test_projection_point = m_projected_pixels[i];
+			test_projection_idx = m_projected_cell_idx[i];
+			test_projection_label = m_projected_labels[i];
+		}
+        m_projected_pixels.clear();
+        m_projected_cell_idx.clear();
+		m_projected_labels.clear();
+
+        m_projected_pixels.push_back(test_projection_point);
+        m_projected_cell_idx.push_back(test_projection_idx);
+        m_projected_labels.push_back(test_projection_label);          
+			
+		std::cout << "current_cell_idx: " << test_projection_idx << std::endl;
+		std::cout << "test_selection_point: " << test_projection_point << std::endl;
+
+		//render_mode = ESelectionRenderMode::Projection;
+	}
 	bool growing_allowed = m_projected_cell_idx.size() > 0 || m_selection_points.size() > 0;
 	if (growing_allowed) {
 		ImGui::SameLine(); 
@@ -577,9 +620,8 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				do_it_once = true;										//il flag si potrebbe evitare con un do-while
 			}
 			if (apply_all_edits_flag == true) {			//Il flag diventa True cliccando sul Button Apply_all_edits
+				std::cout << "Number of edits of current Operator: " << num_of_iterations << " to ";
 				edited_guizmo = true;
-				std::cout << "Number of edits of current Operator: " << num_of_iterations << " to "<< num_of_iterations+1 << std::endl;
-				num_of_iterations++;
 				matrix3_t guizmo_rotation;
 				point_t guizmo_translation;
 				point_t guizmo_scale = point_t(1.0f, 1.0f, 1.0f);
@@ -657,6 +699,8 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 					if (tet_interpolation_mesh) {							
 						interpolate_poisson_boundary();						
 						update_tet_mesh();
+						num_of_iterations++;
+						std::cout << num_of_iterations << std::endl;
 					}
 				}
 

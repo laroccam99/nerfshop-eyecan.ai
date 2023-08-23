@@ -19,7 +19,12 @@ public:
         privateMap.insert(std::make_pair(id, coord));            
     }
 
-    void remove_from_privateMap(std::uint32_t id) {
-        privateMap.erase(id);
+    bool remove_from_privateMap(std::uint32_t id) {
+        auto iterator = privateMap.find(id);
+        if (iterator != privateMap.end()) {         //controlla se quell'elemento è davvero contenuto nella mappa
+            privateMap.erase(iterator);
+            return true;
+        }
+        return false;
     }
 };    

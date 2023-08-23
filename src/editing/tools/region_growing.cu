@@ -11,7 +11,7 @@ NGP_NAMESPACE_BEGIN
 // Launched by GrowingSelection::reset_growing selection grid
 void RegionGrowing::reset_growing(const std::vector<uint32_t>& selected_cells, int growing_level) {
     // Copy the density grid
-    std::cout << "m_density_grid: " << m_density_grid.size() << std::endl;
+    std::cout << "reset_growing() " << std::endl;
     m_density_grid_host.resize(m_density_grid.size());
     m_density_grid.copy_to_host(m_density_grid_host);
 
@@ -100,14 +100,14 @@ void RegionGrowing::grow_region(bool ed_flag, float density_threshold, ERegionGr
         std::cout << "Growing queue is empty!" << std::endl;
         return;
     }
-    m_growing_level = growing_level; 
+    m_growing_level = growing_level;            //attenzione a growing_level che sta a 0 
 
     int i = 1;
 
     if (region_growing_mode == ERegionGrowingMode::Manual) {
         while (!m_growing_queue.empty() && i <= growing_steps) {
-            uint32_t current_cell = m_growing_queue.front();
-            float current_density = m_density_grid_host[current_cell];
+            uint32_t current_cell = m_growing_queue.front();                //current_cell = m_selection_cell_idx 
+            float current_density = m_density_grid_host[current_cell];      //m_density_grid_host è vuoto 
             m_growing_queue.pop();
 
             // Get position (with corresponding level) to fetch neighbours
@@ -115,8 +115,9 @@ void RegionGrowing::grow_region(bool ed_flag, float density_threshold, ERegionGr
             uint32_t pos_idx = current_cell % (NERF_GRIDVOLUME());
 
             // Sample accepted only if at requested level, statisfying density threshold and not already selected!
-            if (!get_bitfield_at(pos_idx, level, m_selection_grid_bitfield.data()) && current_density >= density_threshold && level == m_growing_level) {
-                
+            if (!get_bitfield_at(pos_idx, level, m_selection_grid_bitfield.data())) {
+                if(current_density >= density_threshold){                   //serve current_density + alta
+                if (level == m_growing_level) {
                 // Test whether the new sample touches the boundary, if yes then upscale!
                 if (is_boundary(pos_idx)) {
                     std::cout << "UPSAMPLING" << std::endl;
@@ -140,6 +141,8 @@ void RegionGrowing::grow_region(bool ed_flag, float density_threshold, ERegionGr
                 m_selection_cell_idx.push_back(current_cell);
                 set_bitfield_at(pos_idx, level, true, m_selection_grid_bitfield.data());
                 //std::cout << "m_selection_cell_idx: " << current_cell << std::endl;
+            }
+                }
             }
             i++;
         }
