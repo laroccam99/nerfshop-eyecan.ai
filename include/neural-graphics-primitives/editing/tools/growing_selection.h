@@ -229,6 +229,35 @@ struct GrowingSelection {
         std::cout << "Punto aggiunto all'operatore corrente: " << (queue.size() > 0 ? true : false) << std::endl;
     }
 
+    void remove_but_one() {
+        std::cout << "############################## RemoveBut1 Button " << std::endl;
+		Eigen::Vector3f test_projection_point;
+		uint32_t test_projection_idx;
+		int test_projection_label;
+
+		for (int i = 0; i<1; i++) {			//prendo solo il primo punto
+			test_projection_point = m_projected_pixels[i];
+			test_projection_idx = m_projected_cell_idx[i];
+			test_projection_label = m_projected_labels[i];
+		}
+		//Rimuove tutti gli altri punti per precauzione
+        m_projected_pixels.clear();
+        m_projected_cell_idx.clear();
+		m_projected_labels.clear();
+		//Aggiunge solo il punto desiderato
+        m_projected_pixels.push_back(test_projection_point);
+        m_projected_cell_idx.push_back(test_projection_idx);
+        m_projected_labels.push_back(test_projection_label);          
+			
+		//Stampa di debug, da rimuovere
+		std::cout << "current_cell_idx: " << test_projection_idx << std::endl;
+		std::cout << "test_selection_point: " << test_projection_point << std::endl;
+
+		//Non serve modificare render_mode siccome è già in Projection (post-scribbling) e si aggiorna automaticamente all'avvio del growing
+		//render_mode = ESelectionRenderMode::Projection;
+
+    }
+
     //Per il singolo operatore combina il growing e la costruzione della cage
     void grow_and_cage();
 

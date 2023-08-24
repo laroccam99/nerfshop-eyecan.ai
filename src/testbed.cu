@@ -1163,7 +1163,60 @@ void Testbed::imgui() {
 				update_density_grid_nerf_render(10, false, m_training_stream);
 				reset_accumulation();
 			}
+			
+			ImGui::SameLine();
+			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore
+			//########## DA FIXARE: qualcosa qui dentro crea un eccezione in cui in draw_gui() di testbed cerca di leggere un qualcosa di inesistente
+			if (ImGui::Button("Split")) {	
+				std::cout << "################################################ Button Split Cliccato" << std::endl;
+				selection_map selection_mapObj;
+				std::map<std::uint32_t, Eigen::Vector3f> selection_points_map = selection_mapObj.getPrivateMap();
+
+				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+				std::cout << "Number of operators: " << operators.size() << std::endl;
+
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
+				for (int i = 0; i < operators.size(); ++i) {
+					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
+					
+					if (cage_deformation) {						//Controllo sul tipo
+						if (!selection_points_map.empty()) {
+							std::uint32_t first_id = selection_points_map.begin()->first;
+							std::cout << "First Key: " << first_id << std::endl;
+							Eigen::Vector3f first_selection_point = selection_points_map.begin()->second;
+							std::cout << "First Value: " << first_selection_point.transpose() << std::endl;
+							
+							cage_deformation->m_growing_selection.add_ppoint_to_op(first_id, first_selection_point);	//aggiunge il punto al singolo operatore
+
+							//POTREBBE ESSERE INUTILE CANCELLARE I VALORI DELLA MAPPA, utilizzando un metodo alternativo per scorrere gli elementi della mappa(invece di accedere al 1° elemento)
+							//Bisogna rimuovere la coordinata dalla selection_map per non far prendere quella coordinata ad un altro operatore
+							selection_points_map.erase(first_id);							
+							bool removed = selection_mapObj.remove_from_privateMap(first_id);		//Potrebbe dare problemi, provando a cancellare roba non presente
+							std::cout << "ID removed from map: " << (removed ? true : false) << std::endl;							
+						} else {
+							std::cout << "Map is empty." << std::endl;
+						}	
+					}
+				}			
+			}
 */			
+			ImGui::SameLine();
+			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore
+			if (ImGui::Button("RemoveBut1")) {	
+				std::cout << "################################################ Button RemoveBut1 Cliccato" << std::endl;
+
+				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+				std::cout << "Number of operators: " << operators.size() << std::endl;
+
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
+				for (int i = 0; i < operators.size(); ++i) {
+					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
+					
+					if (cage_deformation) {						//Controllo sul tipo
+						cage_deformation->m_growing_selection.remove_but_one();	//lascia solo un punto al singolo operatore
+					}
+				}			
+			}
 			ImGui::SameLine();
 			//Per ogni operatore effettua un grow_region() e costruisce una cage
 			if (ImGui::Button("Grow&Cage")) {
@@ -2046,7 +2099,7 @@ bool Testbed::frame() {
 			gather_histograms();
 		}
 
-		draw_gui();
+		draw_gui();				//Qui lo Split Button dà eccezione Exception thrown at 0x000001D75B91FEE7 in nerfshop.exe: 0xC0000005: Access violation reading location 0x0000000000000000.
 	}
 #endif
 
