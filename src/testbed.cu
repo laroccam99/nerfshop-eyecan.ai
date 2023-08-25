@@ -1200,8 +1200,28 @@ void Testbed::imgui() {
 					}
 				}			
 			}
-/*
-*/			
+			ImGui::SameLine();
+			//Scribbling fatto 1 volta applicato a tutti gli operatori
+			if (ImGui::Button("B1-MegaScribble")) {	
+				std::cout << "################################################ Button MegaScribble Cliccato" << std::endl;
+				Eigen::Vector2i resolution = m_window_res;
+				Vector2f focal_length = calc_focal_length(resolution, m_fov_axis, m_zoom);
+				Vector2f screen_center = render_screen_center();
+				std::vector<Eigen::Vector2i> m_selected_pixels;
+
+				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
+				for (int i = operators.size()-1; i >= 0; i--) {
+					std::cout << "i: " << i << std::endl;
+					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
+					
+					if (cage_deformation) {
+   					 	m_selected_pixels = cage_deformation->m_growing_selection.mega_scribble(m_selected_pixels, resolution, focal_length, screen_center, m_smoothed_camera);
+						std::cout << "m_selected_pixels.size(): " << m_selected_pixels.size() << std::endl;
+					}
+				}			
+			}			
 			ImGui::SameLine();
 			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore
 			if (ImGui::Button("B2-RemoveBut1")) {	

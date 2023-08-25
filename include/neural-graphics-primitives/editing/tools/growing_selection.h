@@ -194,6 +194,17 @@ struct GrowingSelection {
 
     void set_render_mode_to_PROJ();
 
+    std::vector<Eigen::Vector2i> mega_scribble(std::vector<Eigen::Vector2i> m_selected_pixels, Eigen::Vector2i resolution, Vector2f focal_length, Vector2f screen_center, Eigen::Matrix<float, 3, 4> camera_matrix);
+
+    //Avviato in project_selection_pixels() per il corretto funzionamento del Button MegaScribble
+    void set_temp_m_selected_pixels(std::vector<Eigen::Vector2i> m_selected_pixels){
+	    temp_m_selected_pixels = m_selected_pixels;
+    }
+
+    //Utilizzato solo per essere sicuro di avere quel valore, da rimuovere
+    std::vector<Eigen::Vector2i> get_temp_m_selected_pixels(){
+        return temp_m_selected_pixels;
+    }
 
     //Utilizzato dal Button Grow Far
     int get_m_grow_far_steps(){
@@ -274,6 +285,7 @@ private:
     std::vector<Eigen::Vector2i> m_selected_pixels;
     std::vector<ImVec2> m_selected_pixels_imgui;
     Eigen::Vector2i m_last_selected_pixel = Eigen::Vector2i(-1, -1);
+    std::vector<Eigen::Vector2i> temp_m_selected_pixels;
 
     // Necessary for the kernel parts
     const BoundingBox m_aabb;
