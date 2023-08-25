@@ -1163,7 +1163,7 @@ void Testbed::imgui() {
 				update_density_grid_nerf_render(10, false, m_training_stream);
 				reset_accumulation();
 			}
-			
+*/
 			ImGui::SameLine();
 			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore
 			//########## DA FIXARE: qualcosa qui dentro crea un eccezione in cui in draw_gui() di testbed cerca di leggere un qualcosa di inesistente
@@ -1187,6 +1187,7 @@ void Testbed::imgui() {
 							std::cout << "First Value: " << first_selection_point.transpose() << std::endl;
 							
 							cage_deformation->m_growing_selection.add_ppoint_to_op(first_id, first_selection_point);	//aggiunge il punto al singolo operatore
+							cage_deformation->m_growing_selection.set_render_mode_to_PROJ();							//passa alla modalità di visualizzazione post-scribbling
 
 							//POTREBBE ESSERE INUTILE CANCELLARE I VALORI DELLA MAPPA, utilizzando un metodo alternativo per scorrere gli elementi della mappa(invece di accedere al 1° elemento)
 							//Bisogna rimuovere la coordinata dalla selection_map per non far prendere quella coordinata ad un altro operatore
@@ -1199,6 +1200,7 @@ void Testbed::imgui() {
 					}
 				}			
 			}
+/*
 */			
 			ImGui::SameLine();
 			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore

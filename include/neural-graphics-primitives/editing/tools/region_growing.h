@@ -76,9 +76,18 @@ public:
         return m_growing_queue;
     }
 
-    //Uilizzato dallo Split Button          --TEMPORANEO 
-    void add_to_m_growing_queue(int value) {
+    //Uilizzato dallo Split Button          
+    void reset_push_m_growing_queue(int value) {
+        std::queue<uint32_t> empty_queue;
+        m_growing_queue = empty_queue;
         m_growing_queue.push(value);
+    }
+
+    //Utilizzato dallo Split Button 
+    //Permette di effettuare il growing negli operatori secondari
+    void set_m_density_grid_host() {
+        m_density_grid_host.resize(m_density_grid.size());
+        m_density_grid.copy_to_host(m_density_grid_host);
     }
 
     void upscale_selection(int current_level);

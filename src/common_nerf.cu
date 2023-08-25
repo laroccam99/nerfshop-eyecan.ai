@@ -154,7 +154,8 @@ __device__ float& cascaded_grid_at(Vector3f pos, float* cascaded_grid, uint32_t 
 
 //Launched by RegionGrowing::grow_region()
 __host__ __device__ bool get_bitfield_at(const uint32_t cell_idx, const uint32_t level, const uint8_t* bitfield)  {
-	return bitfield[cell_idx/8+grid_mip_offset(level)/8] & (1<<(cell_idx%8));
+	//cell_idx/8 = Byte index		+		grid_mip_offset(level)/8 = Offset
+	return bitfield[cell_idx/8+grid_mip_offset(level)/8] & (1<<(cell_idx%8));											//Access violation reading location 0x0000000000063E23
 }
 
 //Launched by RegionGrowing::grow_region()

@@ -169,7 +169,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 		std::cout << "test_selection_point: " << test_projection_point << std::endl;
 
 		//Non serve modificare render_mode siccome è già in Projection (post-scribbling) e si aggiorna automaticamente all'avvio del growing
-		//render_mode = ESelectionRenderMode::Projection;		
+		render_mode = ESelectionRenderMode::Projection;		//Necessario siccome skippiamo lo scribbling		
 	}
 	bool growing_allowed = m_projected_cell_idx.size() > 0 || m_selection_points.size() > 0;
 	if (growing_allowed) {
@@ -2320,6 +2320,12 @@ void GrowingSelection::grow_region(bool ed_flag, int growing_steps) {
 	m_selection_cell_idx = m_region_growing.selection_cell_idx();
 	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
 	m_growing_level = m_region_growing.growing_level();
+	//Modifiche aggiunte per avere gli stessi punti_post-scribbling e punti_post-growing
+	if (ed_flag == true) {
+		m_projected_pixels = m_region_growing.selection_points();
+		m_projected_cell_idx = m_region_growing.selection_cell_idx();
+		m_projected_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
+	}
 
 	m_performed_closing = false;
 }
@@ -2715,6 +2721,39 @@ void GrowingSelection::generate_poisson_cube_map() {
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, DEBUG_CUBEMAP_WIDTH, DEBUG_CUBEMAP_WIDTH, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_image);
 	
 	}	
+}
+
+void GrowingSelection::set_render_mode_to_PROJ() {
+	render_mode = ESelectionRenderMode::Projection;
+}
+
+
+//Avviato per ogni operatore dal Button Split
+void GrowingSelection::add_ppoint_to_op(std::uint32_t first_id, Eigen::Vector3f first_selection_point) {
+	//Lasciare solo 1 punto tra quelli post-scribbling
+	m_projected_pixels.clear();
+	m_projected_labels.clear();
+	m_projected_cell_idx.clear();
+	m_projected_pixels.push_back(first_selection_point);
+	m_projected_labels.push_back(0);       
+	m_projected_cell_idx.push_back(first_id);
+	//Lasciare solo 1 punto tra quelli che vengono utilizzati per la costruzione della cage
+	m_selection_points.clear();
+	m_selection_labels.clear();
+	m_selection_cell_idx.clear();
+	m_selection_points.push_back(first_selection_point);
+	m_selection_labels.push_back(0);
+	m_selection_cell_idx.push_back(first_id);
+
+	//DARE VALORE A m_selection_grid_bitfield
+
+	//Il grow_region() necessita di: growing_queue e m_density_grid_host non empty
+	m_region_growing.reset_push_m_growing_queue(first_id);		//uguale a m_projected_cell_idx
+	m_region_growing.set_m_density_grid_host();
+
+	//Utile solo per stampa debug, DA RIMUOVERE
+	std::queue<uint32_t> queue = m_region_growing.get_m_growing_queue();
+	std::cout << "Punto aggiunto all'operatore corrente: " << ((queue.size() > 0) ? true : false) << std::endl;
 }
 
 void GrowingSelection::grow_and_cage() {

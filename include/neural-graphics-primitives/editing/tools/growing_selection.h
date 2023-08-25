@@ -192,6 +192,9 @@ struct GrowingSelection {
 
 	void set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices);
 
+    void set_render_mode_to_PROJ();
+
+
     //Utilizzato dal Button Grow Far
     int get_m_grow_far_steps(){
         return m_grow_far_steps;
@@ -212,22 +215,9 @@ struct GrowingSelection {
     }
 
     //Avviato per ogni operatore dal Button Split
-    void add_ppoint_to_op(std::uint32_t first_id, Eigen::Vector3f first_selection_point) {
-        m_projected_pixels.clear();
-        m_projected_labels.clear();
-        m_projected_cell_idx.clear();
-
-        m_projected_pixels.push_back(first_selection_point);
-        m_projected_labels.push_back(0);       
-        m_projected_cell_idx.push_back(first_id);
-
-        //Il grow_region() necessita di una growing_queue non empty
-        m_region_growing.add_to_m_growing_queue(first_id);		//uguale a m_projected_cell_idx
-
-        //Utile solo per stampa debug, da rimuovere
-        std::queue<uint32_t> queue = m_region_growing.get_m_growing_queue();
-        std::cout << "Punto aggiunto all'operatore corrente: " << (queue.size() > 0 ? true : false) << std::endl;
-    }
+    //Lasciare solo 1 punto tra quelli post-scribbling
+    //Lasciare solo 1 punto tra quelli che vengono utilizzati per la costruzione della cage
+    void add_ppoint_to_op(std::uint32_t first_id, Eigen::Vector3f first_selection_point);
 
     void remove_but_one() {
         std::cout << "############################## RemoveBut1 Button " << std::endl;
