@@ -117,7 +117,7 @@ GrowingSelection::GrowingSelection(
 bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_length,  const Matrix<float, 3, 4>& camera_matrix, const Vector2f& screen_center, bool& auto_clean) {
     bool grid_edit = false;
 
-	if (ImGui::Button("PROJECT")) {
+	if (ImGui::Button("A1-PROJECT")) {
 		project_selection_pixels(m_selected_pixels, resolution, focal_length, camera_matrix, screen_center, m_stream);
 		if (m_projected_cell_idx.size() > 0)
 			render_mode = ESelectionRenderMode::Projection;
@@ -179,7 +179,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
 		ImGui::SameLine(); 
-		if(ImGui::Button("GROW FAR")) {
+		if(ImGui::Button("A1_GROW FAR")) {
 			grow_region(true, get_m_grow_far_steps());
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
@@ -2722,7 +2722,7 @@ void GrowingSelection::generate_poisson_cube_map() {
 	
 	}	
 }
-
+//Utilizzato dallo Split Button
 void GrowingSelection::set_render_mode_to_PROJ() {
 	render_mode = ESelectionRenderMode::Projection;
 }

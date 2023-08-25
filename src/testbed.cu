@@ -1167,7 +1167,7 @@ void Testbed::imgui() {
 			ImGui::SameLine();
 			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore
 			//########## DA FIXARE: qualcosa qui dentro crea un eccezione in cui in draw_gui() di testbed cerca di leggere un qualcosa di inesistente
-			if (ImGui::Button("Split")) {	
+			if (ImGui::Button("A2_Split")) {	
 				std::cout << "################################################ Button Split Cliccato" << std::endl;
 				selection_map selection_mapObj;
 				std::map<std::uint32_t, Eigen::Vector3f> selection_points_map = selection_mapObj.getPrivateMap();
@@ -1204,11 +1204,9 @@ void Testbed::imgui() {
 */			
 			ImGui::SameLine();
 			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore
-			if (ImGui::Button("RemoveBut1")) {	
+			if (ImGui::Button("B2-RemoveBut1")) {	
 				std::cout << "################################################ Button RemoveBut1 Cliccato" << std::endl;
-
 				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
-				std::cout << "Number of operators: " << operators.size() << std::endl;
 
 				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
 				for (int i = 0; i < operators.size(); ++i) {
@@ -1221,10 +1219,9 @@ void Testbed::imgui() {
 			}
 			ImGui::SameLine();
 			//Per ogni operatore effettua un grow_region() e costruisce una cage
-			if (ImGui::Button("Grow&Cage")) {
+			if (ImGui::Button("3_Grow&Cage")) {
 				std::cout << "################################################ Button Grow&Cage Cliccato" << std::endl;
 				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
-				std::cout << "Number of operators: " << operators.size() << std::endl;
 
 				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
 				for (int i = 0; i < operators.size(); ++i) {
@@ -1236,12 +1233,10 @@ void Testbed::imgui() {
 				}
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("APPLY")) {		
+			if (ImGui::Button("4_APPLY")) {		
 				//Rende true tutti i bool apply_all_edits_flag di tutti i growingselections di tutti gli operatori che hanno una cage
 				std::cout << "################################################ Button APPLY Cliccato" << std::endl;
-
 				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
-				std::cout << "Number of operators: " << operators.size() << std::endl;
 
 				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "Add operator Cage"
 				for (const auto& edit_operator : operators) {
