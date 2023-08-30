@@ -193,13 +193,6 @@ public:
 		void add_edit_operator(std::shared_ptr<EditOperator> edit_operator) {
 			m_active_edit_operator = m_edit_operators.size();
 			m_edit_operators.push_back(edit_operator);
-
-			//Permette di sincronizzare il numero di operatori con il numero di punti output del Grow Far
-			//Setta per l'ultimo operatore aggiunto un massimo di punti di output del Grow Far, in modo che possano essere successivamente spartiti equamente (1 per operatore) 
-			std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(edit_operator);
-			if (cage_deformation) {						//Controllo sul tipo
-				cage_deformation->m_growing_selection.set_max_ed_points(max_num_operators);
-			}
 		}
 
 		void delete_edit_operator(int index) {

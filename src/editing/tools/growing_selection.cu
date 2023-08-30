@@ -17,6 +17,7 @@
 #include <igl/writeOBJ.h>
 #include <igl/writePLY.h>
 #include <igl/per_vertex_normals.h>
+#include <random>
 
 #include "meshfix.h"
 
@@ -123,53 +124,11 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			render_mode = ESelectionRenderMode::Projection;
 	}
 	ImGui::SameLine(); 
-	//Aggiunge un punto arbitrario ma non permette il growing (e anche la costruzione della cage)
-	if(ImGui::Button("LilSplit")) {	
-		std::cout << "############################## LilSplit Button " << std::endl;
-		reset_growing();
-
-		//L'indice va scelto in modo che sia compatibile con le coordinate (grande problema): se uscisse dallo scribbling, funzionerebbe
-		int current_cell_idx = 3842063;									//scelto in modo che dia una current_density + alta del threshold
-		std::cout << "current_cell_idx: " << current_cell_idx << std::endl;
-
-		uint32_t g_l = current_cell_idx / (NERF_GRIDVOLUME());
-		std::cout << "growing_level: " << g_l << std::endl;
-		m_region_growing.set_growing_level(g_l);
-
-		Eigen::Vector3f test_selection_point(0.0546875, 0.773438, 1.02344);			//coordinate inventate(centro dell'orecchio della volpe)
-		add_ppoint_to_op(current_cell_idx, test_selection_point);
-
-		//Serve modificare render_mode siccome solo post-Scribbling passa in Projection, quindi bisogna forzarlo
-		render_mode = ESelectionRenderMode::Projection;
-	}
-	ImGui::SameLine(); 
 	//Funziona solo post-scribbling: lascia solo 1 punto tra quelli proiettati, permette growing, costruzione cage e spostamento
 	if(ImGui::Button("RemoveBut1")) {
 		std::cout << "############################## RemoveBut1 Button " << std::endl;
-		Eigen::Vector3f test_projection_point;
-		uint32_t test_projection_idx;
-		int test_projection_label;
-
-		for (int i = 0; i<1; i++) {			//prendo solo il primo punto
-			test_projection_point = m_projected_pixels[i];
-			test_projection_idx = m_projected_cell_idx[i];
-			test_projection_label = m_projected_labels[i];
-		}
-		//Rimuove tutti gli altri punti per precauzione
-        m_projected_pixels.clear();
-        m_projected_cell_idx.clear();
-		m_projected_labels.clear();
-		//Aggiunge solo il punto desiderato
-        m_projected_pixels.push_back(test_projection_point);
-        m_projected_cell_idx.push_back(test_projection_idx);
-        m_projected_labels.push_back(test_projection_label);          
-			
-		//Stampa di debug, da rimuovere
-		std::cout << "current_cell_idx: " << test_projection_idx << std::endl;
-		std::cout << "test_selection_point: " << test_projection_point << std::endl;
-
-		//Non serve modificare render_mode siccome è già in Projection (post-scribbling) e si aggiorna automaticamente all'avvio del growing
-		render_mode = ESelectionRenderMode::Projection;		//Necessario siccome skippiamo lo scribbling		
+		int random_index = random_index_in_selected_pixels();
+		remove_but_one(random_index);		
 	}
 	bool growing_allowed = m_projected_cell_idx.size() > 0 || m_selection_points.size() > 0;
 	if (growing_allowed) {
@@ -625,6 +584,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				select_cage_rect(screen_selection);						//con select_scribbling non funziona siccome è legato alla posizione del mouse 
 				reset_cage_selection();									//resetto tutto per non lasciare tracce, l'importante è passare per questa parte di codice
 				do_it_once = true;										//il flag si potrebbe evitare con un do-while, ma almeno così è resettabile
+				std::cout << "do_it_once: " << do_it_once << std::endl;
 			}
 			if (apply_all_edits_flag == true) {			//Il flag diventa True cliccando sul Button Apply_all_edits
 				std::cout << "Number of edits of current Operator: " << num_of_iterations << " to ";
@@ -2270,9 +2230,6 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 		return;
 	}
 	std::cout << "Reprojected " << n_rays << " rays" << std::endl;
-
-	//Salva m_selected_pixels in una variabile apposita prima di eliminare il suo contenuto
-	set_temp_m_selected_pixels(m_selected_pixels);
 	
 	//Clear the selected pixels and reset the growing selection
 	m_selected_pixels.clear();
@@ -2730,43 +2687,43 @@ void GrowingSelection::set_render_mode_to_PROJ() {
 	render_mode = ESelectionRenderMode::Projection;
 }
 
-std::vector<Eigen::Vector2i> GrowingSelection::mega_scribble(std::vector<Eigen::Vector2i> arg_m_selected_pixels, Eigen::Vector2i resolution, Vector2f focal_length, Vector2f screen_center, Eigen::Matrix<float, 3, 4> camera_matrix) {
-if (arg_m_selected_pixels.size() > 0) {
-		m_selected_pixels = arg_m_selected_pixels;
-	}
-	project_selection_pixels(m_selected_pixels, resolution, focal_length, camera_matrix, screen_center, m_stream);
-    std::cout << "project_selection_pixels DONE!" << std::endl;
-	
-	if (m_projected_cell_idx.size() > 0) render_mode = ESelectionRenderMode::Projection;
-	return get_temp_m_selected_pixels();
+int GrowingSelection::random_index_in_selected_pixels(){
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	int randomIndex;
+
+	//Estrae un numero casuale compreso tra 0 e m_projected_pixels.size()											
+	std::uniform_int_distribution<int> distribution(0, m_projected_pixels.size() - 1);
+	randomIndex = distribution(gen);
+	std::cout << "randomIndex: " << randomIndex << std::endl;
+	return randomIndex;
 }
 
-//Avviato per ogni operatore dal Button Split
-void GrowingSelection::add_ppoint_to_op(std::uint32_t first_id, Eigen::Vector3f first_selection_point) {
-	//Lasciare solo 1 punto tra quelli post-scribbling
+void GrowingSelection::remove_but_one(int randomIndex) {
+	std::cout << "###################### remove_but_one Function " << std::endl;
+	Eigen::Vector3f one_projection_point = m_projected_pixels[randomIndex];
+	uint32_t one_projection_idx= m_projected_cell_idx[randomIndex];
+
+	//Rimuove tutti gli altri punti per precauzione
 	m_projected_pixels.clear();
 	m_projected_labels.clear();
 	m_projected_cell_idx.clear();
-	m_projected_pixels.push_back(first_selection_point);
-	m_projected_labels.push_back(0);       
-	m_projected_cell_idx.push_back(first_id);
+	//Aggiunge solo il punto desiderato
+	m_projected_pixels.push_back(one_projection_point);
+	m_projected_labels.push_back(0);          
+	m_projected_cell_idx.push_back(one_projection_idx);
+		
 	//Lasciare solo 1 punto tra quelli che vengono utilizzati per la costruzione della cage
 	m_selection_points.clear();
 	m_selection_labels.clear();
 	m_selection_cell_idx.clear();
-	m_selection_points.push_back(first_selection_point);
+	m_selection_points.push_back(one_projection_point);
 	m_selection_labels.push_back(0);
-	m_selection_cell_idx.push_back(first_id);
+	m_selection_cell_idx.push_back(one_projection_idx);
 
-	//DARE VALORE A m_selection_grid_bitfield
-
-	//Il grow_region() necessita di: growing_queue e m_density_grid_host non empty
-	m_region_growing.reset_push_m_growing_queue(first_id);		//uguale a m_projected_cell_idx
-	m_region_growing.set_m_density_grid_host();
-
-	//Utile solo per stampa debug, DA RIMUOVERE
-	std::queue<uint32_t> queue = m_region_growing.get_m_growing_queue();
-	std::cout << "Punto aggiunto all'operatore corrente: " << ((queue.size() > 0) ? true : false) << std::endl;
+	//Stampa di debug, da rimuovere
+	std::cout << "current_cell_idx: " << one_projection_idx << std::endl;
+	std::cout << "one_selection_point: " << one_projection_point << std::endl;
 }
 
 void GrowingSelection::grow_and_cage() {
@@ -2777,6 +2734,19 @@ void GrowingSelection::grow_and_cage() {
 			fix_proxy_mesh();
 			update_tet_mesh();
 			interpolate_poisson_boundary();
+	}
+}
+
+//Modifica il flag che permette le modifiche automaticamente quando è true
+void GrowingSelection::set_apply_all_edits_flag(bool value){
+	std::cout << "Current Operator apply_all_edits_flag from : " << (apply_all_edits_flag ? "True" : "False") << " to ";
+
+	if (value == true) {            //AGGIUNGERE CHECK CHE CONTROLLA ESISTENZA DELLA CAGE, (evitabile date le circostanze)
+		apply_all_edits_flag = true;
+		std::cout << (apply_all_edits_flag ? "True" : "False") << std::endl;
+	}else {
+		apply_all_edits_flag = false;
+		std::cout << "Disabled  " << std::endl;
 	}
 }
 

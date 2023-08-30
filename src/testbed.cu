@@ -1094,6 +1094,8 @@ void Testbed::imgui() {
 						m_nerf.max_cascade
 					);
 					m_nerf.tracer.add_edit_operator(cage_deformation);				//Aggiunge operatore e obbliga max_num_operators==numero di punti output del Grow Far
+					//Setta per l'ultimo operatore aggiunto un massimo di punti di output del Grow Far, in modo che possano essere successivamente spartiti equamente (1 per operatore) 
+					cage_deformation->m_growing_selection.set_max_ed_points(m_nerf.tracer.get_max_num_operators());
 				}				
 			}
 /*
@@ -1164,76 +1166,22 @@ void Testbed::imgui() {
 				reset_accumulation();
 			}
 */
-			ImGui::SameLine();
-			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore
-			//########## DA FIXARE: qualcosa qui dentro crea un eccezione in cui in draw_gui() di testbed cerca di leggere un qualcosa di inesistente
-			if (ImGui::Button("A2_Split")) {	
-				std::cout << "################################################ Button Split Cliccato" << std::endl;
-				selection_map selection_mapObj;
-				std::map<std::uint32_t, Eigen::Vector3f> selection_points_map = selection_mapObj.getPrivateMap();
-
-				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
-				std::cout << "Number of operators: " << operators.size() << std::endl;
-
-				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
-				for (int i = 0; i < operators.size(); ++i) {
-					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
-					
-					if (cage_deformation) {						//Controllo sul tipo
-						if (!selection_points_map.empty()) {
-							std::uint32_t first_id = selection_points_map.begin()->first;
-							std::cout << "First Key: " << first_id << std::endl;
-							Eigen::Vector3f first_selection_point = selection_points_map.begin()->second;
-							std::cout << "First Value: " << first_selection_point.transpose() << std::endl;
-							
-							cage_deformation->m_growing_selection.add_ppoint_to_op(first_id, first_selection_point);	//aggiunge il punto al singolo operatore
-							cage_deformation->m_growing_selection.set_render_mode_to_PROJ();							//passa alla modalità di visualizzazione post-scribbling
-
-							//POTREBBE ESSERE INUTILE CANCELLARE I VALORI DELLA MAPPA, utilizzando un metodo alternativo per scorrere gli elementi della mappa(invece di accedere al 1° elemento)
-							//Bisogna rimuovere la coordinata dalla selection_map per non far prendere quella coordinata ad un altro operatore
-							selection_points_map.erase(first_id);							
-							bool removed = selection_mapObj.remove_from_privateMap(first_id);		//Potrebbe dare problemi, provando a cancellare roba non presente
-							std::cout << "ID removed from map: " << (removed ? true : false) << std::endl;							
-						} else {
-							std::cout << "Map is empty." << std::endl;
-						}	
-					}
-				}			
-			}
-			ImGui::SameLine();
-			//Scribbling fatto 1 volta applicato a tutti gli operatori
-			if (ImGui::Button("B1-MegaScribble")) {	
-				std::cout << "################################################ Button MegaScribble Cliccato" << std::endl;
-				Eigen::Vector2i resolution = m_window_res;
-				Vector2f focal_length = calc_focal_length(resolution, m_fov_axis, m_zoom);
-				Vector2f screen_center = render_screen_center();
-				std::vector<Eigen::Vector2i> m_selected_pixels;
-
-				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
-
-				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
-				for (int i = operators.size()-1; i >= 0; i--) {
-					std::cout << "i: " << i << std::endl;
-					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
-					
-					if (cage_deformation) {
-   					 	m_selected_pixels = cage_deformation->m_growing_selection.mega_scribble(m_selected_pixels, resolution, focal_length, screen_center, m_smoothed_camera);
-						std::cout << "m_selected_pixels.size(): " << m_selected_pixels.size() << std::endl;
-					}
-				}			
-			}			
+			
 			ImGui::SameLine();
 			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore
 			if (ImGui::Button("B2-RemoveBut1")) {	
 				std::cout << "################################################ Button RemoveBut1 Cliccato" << std::endl;
 				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+				int randomIndex;
 
 				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
-				for (int i = 0; i < operators.size(); ++i) {
+				for (int i = operators.size()-1; i >= 0; i--) {
 					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
-					
+					//Estrae punti casuali per ogni operatore (DEVONO ESSERE DIVERSI E DISTANTI)
 					if (cage_deformation) {						//Controllo sul tipo
-						cage_deformation->m_growing_selection.remove_but_one();	//lascia solo un punto al singolo operatore
+						randomIndex = cage_deformation->m_growing_selection.random_index_in_selected_pixels();
+						//Lascia solo il punto scelto al singolo operatore
+						cage_deformation->m_growing_selection.remove_but_one(randomIndex);
 					}
 				}			
 			}
@@ -1257,13 +1205,14 @@ void Testbed::imgui() {
 				//Rende true tutti i bool apply_all_edits_flag di tutti i growingselections di tutti gli operatori che hanno una cage
 				std::cout << "################################################ Button APPLY Cliccato" << std::endl;
 				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
-
+				bool flag=false;
 				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "Add operator Cage"
 				for (const auto& edit_operator : operators) {
 					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(edit_operator);
 					
 					if (cage_deformation) {						//Controllo sul tipo
-						std::cout << "cage_deformation " << cage_deformation << " apply_all_edits_flag : " << (cage_deformation->m_growing_selection.get_apply_all_edits_flag() ? true : false) << std::endl;
+						flag = cage_deformation->m_growing_selection.get_apply_all_edits_flag();
+						std::cout << "cage_deformation " << cage_deformation << " apply_all_edits_flag : " << (flag ? "true" : "false") << std::endl;
 						cage_deformation->m_growing_selection.set_apply_all_edits_flag(true);		//setta true ???...solo se già esiste una cage per quell'operatore
 					}
 				}

@@ -95,6 +95,8 @@ void RegionGrowing::upscale_selection(int current_level) {
 
 //GUI Button "Grow region" and "Grow Far", second function
 void RegionGrowing::grow_region(bool ed_flag, float density_threshold, ERegionGrowingMode region_growing_mode, int growing_level, int growing_steps) {
+    std::cout << "grow_region()" << std::endl;;
+
     // Make sure we can actually grow!
     if (m_growing_queue.empty()) {
         std::cout << "Growing queue is empty!" << std::endl;

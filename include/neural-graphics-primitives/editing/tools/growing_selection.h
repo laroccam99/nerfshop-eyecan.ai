@@ -194,18 +194,6 @@ struct GrowingSelection {
 
     void set_render_mode_to_PROJ();
 
-    std::vector<Eigen::Vector2i> mega_scribble(std::vector<Eigen::Vector2i> m_selected_pixels, Eigen::Vector2i resolution, Vector2f focal_length, Vector2f screen_center, Eigen::Matrix<float, 3, 4> camera_matrix);
-
-    //Avviato in project_selection_pixels() per il corretto funzionamento del Button MegaScribble
-    void set_temp_m_selected_pixels(std::vector<Eigen::Vector2i> m_selected_pixels){
-	    temp_m_selected_pixels = m_selected_pixels;
-    }
-
-    //Utilizzato solo per essere sicuro di avere quel valore, da rimuovere
-    std::vector<Eigen::Vector2i> get_temp_m_selected_pixels(){
-        return temp_m_selected_pixels;
-    }
-
     //Utilizzato dal Button Grow Far
     int get_m_grow_far_steps(){
         return m_grow_far_steps;
@@ -224,54 +212,15 @@ struct GrowingSelection {
         m_region_growing.set_min_ed_points_threshold(max_num_operators);
         std::cout << "Final max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
     }
-
-    //Avviato per ogni operatore dal Button Split
-    //Lasciare solo 1 punto tra quelli post-scribbling
-    //Lasciare solo 1 punto tra quelli che vengono utilizzati per la costruzione della cage
-    void add_ppoint_to_op(std::uint32_t first_id, Eigen::Vector3f first_selection_point);
-
-    void remove_but_one() {
-        std::cout << "############################## RemoveBut1 Button " << std::endl;
-		Eigen::Vector3f test_projection_point;
-		uint32_t test_projection_idx;
-		int test_projection_label;
-
-		for (int i = 0; i<1; i++) {			//prendo solo il primo punto
-			test_projection_point = m_projected_pixels[i];
-			test_projection_idx = m_projected_cell_idx[i];
-			test_projection_label = m_projected_labels[i];
-		}
-		//Rimuove tutti gli altri punti per precauzione
-        m_projected_pixels.clear();
-        m_projected_cell_idx.clear();
-		m_projected_labels.clear();
-		//Aggiunge solo il punto desiderato
-        m_projected_pixels.push_back(test_projection_point);
-        m_projected_cell_idx.push_back(test_projection_idx);
-        m_projected_labels.push_back(test_projection_label);          
-			
-		//Stampa di debug, da rimuovere
-		std::cout << "current_cell_idx: " << test_projection_idx << std::endl;
-		std::cout << "test_selection_point: " << test_projection_point << std::endl;
-
-		//Non serve modificare render_mode siccome è già in Projection (post-scribbling) e si aggiorna automaticamente all'avvio del growing
-		//render_mode = ESelectionRenderMode::Projection;
-
-    }
+    int GrowingSelection::random_index_in_selected_pixels();
+    
+    void remove_but_one(int randomIndex);
 
     //Per il singolo operatore combina il growing e la costruzione della cage
     void grow_and_cage();
 
     //Modifica il flag che permette le modifiche automaticamente quando è true
-    void set_apply_all_edits_flag(bool value){
-        if (value == true) {            //AGGIUNGERE CHECK CHE CONTROLLA ESISTENZA DELLA CAGE, (evitabile date le circostanze)
-            apply_all_edits_flag = true;
-            std::cout << "Current Operator apply_all_edits_flag: " << (apply_all_edits_flag ? "true" : "false") << std::endl;
-        }else {
-            apply_all_edits_flag = false;
-            std::cout << "Current Operator: Deformation disabled  " << std::endl;
-        }
-    }
+    void set_apply_all_edits_flag(bool value);
 
     //Utilizzato solo per stampa debug, da rimuovere
     bool get_apply_all_edits_flag(){
@@ -285,7 +234,6 @@ private:
     std::vector<Eigen::Vector2i> m_selected_pixels;
     std::vector<ImVec2> m_selected_pixels_imgui;
     Eigen::Vector2i m_last_selected_pixel = Eigen::Vector2i(-1, -1);
-    std::vector<Eigen::Vector2i> temp_m_selected_pixels;
 
     // Necessary for the kernel parts
     const BoundingBox m_aabb;
@@ -332,7 +280,7 @@ private:
     std::vector<uint8_t> m_selection_grid_bitfield;
 
     // Region-growing
-    int m_growing_steps = 8000;                         //utilizzato per il grow_region normale
+    int m_growing_steps = 4000;                         //utilizzato per il grow_region normale
     int m_grow_far_steps = 25000;                       //utilizzato per il grow far button
     int m_growing_level = 0;
     float m_density_threshold = 0.01f;
