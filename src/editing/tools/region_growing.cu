@@ -109,7 +109,7 @@ void RegionGrowing::grow_region(bool ed_flag, float density_threshold, ERegionGr
     if (region_growing_mode == ERegionGrowingMode::Manual) {
         while (!m_growing_queue.empty() && i <= growing_steps) {
             uint32_t current_cell = m_growing_queue.front();                //current_cell = m_selection_cell_idx 
-            float current_density = m_density_grid_host[current_cell];      //con operatori secondari, di base m_density_grid_host è vuoto 
+            float current_density = m_density_grid_host[current_cell];      //con operatori secondari, di base m_density_grid_host sarebbe vuoto 
             m_growing_queue.pop();
 
             // Get position (with corresponding level) to fetch neighbours

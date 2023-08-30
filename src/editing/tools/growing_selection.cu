@@ -10,6 +10,8 @@
 #include <neural-graphics-primitives/editing/tools/visualization_utils.h>
 #include <neural-graphics-primitives/bounding_box.cuh>
 #include <neural-graphics-primitives/envmap.cuh>
+#include <neural-graphics-primitives/helper_selected_pixels.h>
+
 
 #include <igl/copyleft/tetgen/tetrahedralize.h>
 #include <igl/decimate.h>
@@ -132,7 +134,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 	}
 	bool growing_allowed = m_projected_cell_idx.size() > 0 || m_selection_points.size() > 0;
 	if (growing_allowed) {
-		ImGui::SameLine(); 
+		//ImGui::SameLine(); 
 		if(ImGui::Button("GROW_REGION")) {
 			grow_region(false, get_m_growing_steps());
 			render_mode = ESelectionRenderMode::RegionGrowing;
@@ -2230,6 +2232,10 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 		return;
 	}
 	std::cout << "Reprojected " << n_rays << " rays" << std::endl;
+
+	//Salva m_selected_pixels in una variabile apposita prima di eliminare il suo contenuto
+	helper_selected_pixels helperObj;
+	helperObj.set_selected_pixels(m_selected_pixels);
 	
 	//Clear the selected pixels and reset the growing selection
 	m_selected_pixels.clear();
@@ -2685,6 +2691,19 @@ void GrowingSelection::generate_poisson_cube_map() {
 //Utilizzato dallo Split Button
 void GrowingSelection::set_render_mode_to_PROJ() {
 	render_mode = ESelectionRenderMode::Projection;
+}
+
+std::vector<Eigen::Vector2i> GrowingSelection::mega_scribble(std::vector<Eigen::Vector2i> arg_m_selected_pixels, Eigen::Vector2i resolution, Vector2f focal_length, Vector2f screen_center, Eigen::Matrix<float, 3, 4> camera_matrix) {
+	helper_selected_pixels helperObj;
+
+	if (arg_m_selected_pixels.size() > 0) {
+			m_selected_pixels = arg_m_selected_pixels;
+		}
+		project_selection_pixels(m_selected_pixels, resolution, focal_length, camera_matrix, screen_center, m_stream);
+		std::cout << "project_selection_pixels DONE!" << std::endl;
+		
+		if (m_projected_cell_idx.size() > 0) render_mode = ESelectionRenderMode::Projection;
+		return helperObj.get_selected_pixels();
 }
 
 int GrowingSelection::random_index_in_selected_pixels(){

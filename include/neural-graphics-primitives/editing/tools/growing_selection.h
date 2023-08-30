@@ -194,6 +194,9 @@ struct GrowingSelection {
 
     void set_render_mode_to_PROJ();
 
+        std::vector<Eigen::Vector2i> mega_scribble(std::vector<Eigen::Vector2i> m_selected_pixels, Eigen::Vector2i resolution, Vector2f focal_length, Vector2f screen_center, Eigen::Matrix<float, 3, 4> camera_matrix);
+
+
     //Utilizzato dal Button Grow Far
     int get_m_grow_far_steps(){
         return m_grow_far_steps;

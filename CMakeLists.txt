@@ -340,6 +340,7 @@ include_directories("include")
 
 set(SOURCES
 	${GUI_SOURCES}
+	src/helper_selected_pixels.cpp
 	src/selection_map.cpp
 	src/camera_path.cu
 	src/common_device.cu
