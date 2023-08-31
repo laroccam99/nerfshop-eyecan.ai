@@ -283,7 +283,7 @@ private:
     std::vector<uint8_t> m_selection_grid_bitfield;
 
     // Region-growing
-    int m_growing_steps = 4000;                         //utilizzato per il grow_region normale
+    int m_growing_steps = 200;                         //utilizzato per il grow_region normale
     int m_grow_far_steps = 25000;                       //utilizzato per il grow far button
     int m_growing_level = 0;
     float m_density_threshold = 0.01f;

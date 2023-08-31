@@ -254,7 +254,7 @@ public:
 		tcnn::GPUMemoryArena::Allocation m_scratch_alloc;
 		std::vector<std::shared_ptr<EditOperator>> m_edit_operators;
 		int m_active_edit_operator = -1;
-		int max_num_operators = 2;										//numero di operatori che verranno utilizzati, numero di cage e deformazioni 
+		int max_num_operators = 4;										//numero di operatori che verranno utilizzati, numero di cage e deformazioni 
 	};
 
 	class FiniteDifferenceNormalsApproximator {

@@ -2175,7 +2175,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 		}
 	}
 
-	std::cout << "ray_counter_host: " << ray_counter_host << std::endl;
+	//std::cout << "ray_counter_host: " << ray_counter_host << std::endl;
 	std::cout << "m_projected_pixels_tmp size: " << m_projected_pixels_tmp.size() << std::endl;
 	
 	// Set to avoid duplicate cell_idx
@@ -2287,11 +2287,11 @@ void GrowingSelection::grow_region(bool ed_flag, int growing_steps) {
 	m_selection_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
 	m_growing_level = m_region_growing.growing_level();
 	//Modifiche aggiunte per avere gli stessi punti_post-scribbling e punti_post-growing
-	if (ed_flag == true) {
+	/*if (ed_flag == true) {
 		m_projected_pixels = m_region_growing.selection_points();
 		m_projected_cell_idx = m_region_growing.selection_cell_idx();
 		m_projected_labels = std::vector<uint8_t>(m_selection_points.size(), 0);
-	}
+	}*/
 
 	m_performed_closing = false;
 }
@@ -2706,6 +2706,8 @@ std::vector<Eigen::Vector2i> GrowingSelection::mega_scribble(std::vector<Eigen::
 		return helperObj.get_selected_pixels();
 }
 
+//Restituisce l'indice di una cella superficiale casuale in m_selected_pixels
+//TODO: fare in modo che restituisca l'indice di una cella distante dall'ultima cella 
 int GrowingSelection::random_index_in_selected_pixels(){
 	std::random_device rd;
 	std::mt19937 gen(rd());
