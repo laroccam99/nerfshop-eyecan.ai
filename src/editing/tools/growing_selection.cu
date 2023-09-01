@@ -2280,6 +2280,10 @@ void GrowingSelection::upscale_growing() {
 
 //GUI Button "Grow region" and "Grow Far", first function
 void GrowingSelection::grow_region(bool ed_flag, int growing_steps) {
+	int cell_idx = m_projected_cell_idx.at(0);
+	m_region_growing.reset_push_m_growing_queue(cell_idx);
+	m_region_growing.reset_growing(m_projected_cell_idx, m_growing_level);
+	
 	m_region_growing.grow_region(ed_flag, m_density_threshold, m_region_growing_mode, m_growing_level, growing_steps);
 	m_selection_grid_bitfield = m_region_growing.selection_grid_bitfield();
 	m_selection_points = m_region_growing.selection_points();
