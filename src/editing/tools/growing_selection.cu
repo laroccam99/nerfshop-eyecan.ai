@@ -585,6 +585,22 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 									0.0f, 0.0f, 0.0f, 2.0f;
 				select_cage_rect(screen_selection);						//con select_scribbling non funziona siccome è legato alla posizione del mouse 
 				reset_cage_selection();									//resetto tutto per non lasciare tracce, l'importante è passare per questa parte di codice
+				
+				// Inizializza un generatore di numeri casuali
+				std::random_device rd;
+				std::mt19937 gen(rd());
+				// Definisci il range di numeri casuali
+				float min_value = -0.1;
+				float max_value = 0.1;
+				// Crea una distribuzione uniforme tra min_value e max_value
+				std::uniform_real_distribution<float> dis(min_value, max_value);
+				// Genera un numero casuale all'interno del range
+				float random_float_x = dis(gen);
+				float random_float_y = dis(gen);
+				float random_float_z = dis(gen);
+				random_translation = point_t(random_float_x, random_float_y, random_float_z);
+				std::cout << "random_translation:      X=" << random_float_x << "      Y=" << random_float_y << "      Z=" << random_float_z << std::endl;
+
 				do_it_once = true;										//il flag si potrebbe evitare con un do-while, ma almeno così è resettabile
 				std::cout << "do_it_once: " << do_it_once << std::endl;
 			}
@@ -613,7 +629,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				guizmo_rotation << rotation * cage_edition.selection_rotation;				//Per rendere il valore Guizmo rotation coerente con la rotazione imposta
 				std::cout << "Final rotation matrix: " << rotation << std::endl;  
 		*/
-				translation << 0.000f, 0.2f, 0.000f; 										//modifica al vettore spostamento (modifica arbitraria, verso l'alto)
+				translation = random_translation; 											//modifica al vettore spostamento (modifica arbitraria, verso l'alto)
 				guizmo_translation << translation + cage_edition.selection_barycenter; 		//Rende il punto iniziale Guizmo coerente con lo spostamento, per la prossima modifica
 		//		std::cout << "Final Translation vector: " << translation << std::endl;  
 

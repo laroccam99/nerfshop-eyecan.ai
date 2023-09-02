@@ -321,6 +321,7 @@ private:
     // Automatically update the tet when a manipulation is performed
     bool m_update_tet_manipulation = true;
     bool do_it_once = false;                    //con un do-while si potrebbe evitare questa variabile, ma almeno ora è resettabile 
+    point_t random_translation = point_t(0.000f, 0.0f, 0.000f);
     bool apply_all_edits_flag = false;          //se true, viene attuata la modifica (trasl/rotaz) automatica alla cage
     const int max_number_of_iterations = 1;     //siccome è specifico di un operatore solo, va fissato a 1
     int num_of_iterations = 0;                  //counter di modifiche automatiche avviate, di solito va da 0 a 1
