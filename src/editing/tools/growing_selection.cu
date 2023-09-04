@@ -208,6 +208,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 	if (m_selection_grid_bitfield.size() > 0) {
 		if (imgui_colored_button2("Apply 1 edit", 0.2f)) {
 			set_apply_all_edits_flag(true);
+			//manca la parte che rende set_m_apply_poisson(true)
 		}
 	}
 	if (tet_interpolation_mesh) {
@@ -590,8 +591,8 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				std::random_device rd;
 				std::mt19937 gen(rd());
 				// Definisci il range di numeri casuali
-				float min_value = -0.1;
-				float max_value = 0.1;
+				float min_value = -0.05;
+				float max_value = 0.05;
 				// Crea una distribuzione uniforme tra min_value e max_value
 				std::uniform_real_distribution<float> dis(min_value, max_value);
 				// Genera un numero casuale all'interno del range
@@ -605,7 +606,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				std::cout << "do_it_once: " << do_it_once << std::endl;
 			}
 			if (apply_all_edits_flag == true) {			//Il flag diventa True cliccando sul Button Apply_all_edits
-				std::cout << "Number of edits of current Operator: " << num_of_iterations << " to ";
+				std::cout << "Number of edits of current Operator: from " << num_of_iterations << std::endl;
 				edited_guizmo = true;
 				matrix3_t guizmo_rotation;
 				point_t guizmo_translation;
@@ -652,24 +653,92 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 					}
 					else
 					{
-						//Codice originale non più utile, lo lascio per testing futuro
-/*						for (const auto selected_vertex : cage_edition.selected_vertices) {
+						//CODICE PER RICERCARE IL VERTICE PIU' DISTANTE DAL PUNTO SUPERFICIALE(only_point) LASCIATO CON remove_but_one() nel m_selection_points originale
+						//Una volta individuato, si ricercano anche un gruppo di vertici più vicini ad esso, in modo da applicare la deformazione ad una piccola zona  				
+						Eigen::Vector3f diff;
+						float euclidean_distance;
+						std::vector<std::pair<std::uint32_t, float>> id_distance_vec; 
+						 
+						for (uint32_t id = 0; id < proxy_cage.vertices.size(); id++) {
+							//Calcola la differenza tra le coordinate dei punti
+							diff = only_point - proxy_cage.vertices.at(id);							//only_point viene inizializzato da remove_but_one()
+							//Calcola la distanza euclidea
+							euclidean_distance = diff.norm();							
+							id_distance_vec.push_back(std::make_pair(id, euclidean_distance));      //viene riempito un vettore di distanze      
+							//std::cout << "id: " << id << ", distance: " << euclidean_distance << " added to id_distance_vec" << std::endl;
+						}
+						// Ordina il vettore in ordine decrescente in base alla distanza
+						std::sort(id_distance_vec.begin(), id_distance_vec.end(), [](const auto& a, const auto& b) {
+							return a.second > b.second; // Ordine decrescente
+						});
+
+						std::vector<std::uint32_t> vertices_to_move_vec;							//Conterrà tutti i vertici che subiranno la deformazione
+						vertices_to_move_vec.push_back(id_distance_vec[0].first);					//Il primo vertice nel vettore è il più lontano dall'only_point
+						/*//Stampa vettore debug, DA RIMUOVERE
+						for(int i=0 ; i<id_distance_vec.size(); i++) {
+							std::cout << "id: " << id_distance_vec[i].first << ", distance: " << id_distance_vec[i].second << std::endl;
+						}*/
+
+						//Calcola ed aggiunge ad un vettore tutti i vertici della cage assieme alla loro distanza dal vertice più lontano
+						std::vector<std::pair<std::uint32_t, float>> id_distance_from_furthest_point; 						 
+						for (uint32_t id = 0; id < proxy_cage.vertices.size(); id++) {//per ogni vertice
+							// Calcola la differenza tra le coordinate del punto pi+ lontano e il vertice in considerazione
+							diff = proxy_cage.vertices.at(id_distance_vec[0].first) - proxy_cage.vertices.at(id);
+							// Calcola la distanza euclidea
+							euclidean_distance = diff.norm();							
+							id_distance_from_furthest_point.push_back(std::make_pair(id, euclidean_distance));            
+							//std::cout << "id: " << id << ", distance from vertex " << id_distance_vec[0].first << ": " << euclidean_distance << " added to id_distance_from_furthest_point" << std::endl;
+						}
+						// Ordina il vettore in ordine crescente (servono i vertici attorno a quello più lontano) in base alla distanza
+						std::sort(id_distance_from_furthest_point.begin(), id_distance_from_furthest_point.end(), [](const auto& a, const auto& b) {
+							return a.second < b.second; // Ordine crescente
+						});
+
+						// Rimuovere il primo vertice: il vertice più vicino al vertice più lontano è il vertice stesso (che è già stato aggiunto)
+						if (!id_distance_from_furthest_point.empty()) {
+							id_distance_from_furthest_point.erase(id_distance_from_furthest_point.begin());
+						}
+						/*//Stampa vettore debug, DA RIMUOVERE
+						for(int i=0 ; i<id_distance_from_furthest_point.size(); i++) {
+							std::cout << "id: " << id_distance_from_furthest_point[i].first << ", distance from vertex: " << id_distance_from_furthest_point[i].second << std::endl;
+						}*/
+						// Riempie il vettore finale con i vertici da spostare						
+						int num_vertices_around = 40;								//quanti vertici spostare attorno al più lontano
+						for (int i=0; i<num_vertices_around; i++) {	
+							vertices_to_move_vec.push_back(id_distance_from_furthest_point[i].first);
+						}
+						/*//Stampa vettore debug, DA RIMUOVERE
+						for(int i=0 ; i<vertices_to_move_vec.size(); i++) {
+							std::cout << "TO MOVE id: " << vertices_to_move_vec[i] << std::endl;
+						}*/
+						std::cout << "TO MOVE: " << vertices_to_move_vec.size() << " cage vertices" << std::endl;
+						//Selezione vertici da traslare
+						for (uint32_t i=0; i<vertices_to_move_vec.size(); i++) {
+							//proxy_cage.labels[vertices_to_move_vec[i]] = 1;
+							cage_edition.selected_vertices.push_back(vertices_to_move_vec[i]);
+						}	
+						
+						//Codice originale per applicare traslazione e rotazione ad ogni vertice
+						for (const auto selected_vertex : cage_edition.selected_vertices) {
 							// Rotate (w.r.t. barycenter)
 							proxy_cage.vertices[selected_vertex] = rotation * (proxy_cage.vertices[selected_vertex] - cage_edition.selection_barycenter) + cage_edition.selection_barycenter;
 							// Scale (by rotating back, scaling and then rotation again)
 							proxy_cage.vertices[selected_vertex] = cage_edition.selection_rotation * scaling.cwiseProduct(cage_edition.selection_rotation.transpose() * (proxy_cage.vertices[selected_vertex] - cage_edition.selection_barycenter)) + cage_edition.selection_barycenter;
 							// Then, translate
 							proxy_cage.vertices[selected_vertex] += translation;
-						}
-*/						//Codice sostituito per applicare l'editing a tutti i vertici della cage e non solo a quelli selezionati in verde 		
+						}						
+/*						//Codice sostituito per applicare l'editing a tutti i vertici della cage e non solo a quelli selezionati in verde 		
 						for (auto& selected_vertex : proxy_cage.vertices) {
 							// Rotate (w.r.t. barycenter)
 							selected_vertex = rotation * (selected_vertex - cage_edition.selection_barycenter) + cage_edition.selection_barycenter;
+							std::cout << "selected_vertex " << i << ": " << selected_vertex << std::endl;
 							// Scale (by rotating back, scaling and then rotation again)
 							selected_vertex = cage_edition.selection_rotation * scaling.cwiseProduct(cage_edition.selection_rotation.transpose() * (selected_vertex - cage_edition.selection_barycenter)) + cage_edition.selection_barycenter;
+							std::cout << "selected_vertex " << i << ": " << selected_vertex << std::endl;
 							// Then, translate
 							selected_vertex += translation;
-						}
+							std::cout << "Final selected_vertex " << i << ": " << selected_vertex << std::endl;
+						}*/
 					}
 				}
 				//Update the barycenter, rotation, and scaling of the selection based on the new transformation.
@@ -685,7 +754,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 						interpolate_poisson_boundary();						
 						update_tet_mesh();
 						num_of_iterations++;
-						std::cout << num_of_iterations << std::endl;
+						std::cout << "Number of edits of current Operator: to " << num_of_iterations << std::endl;
 					}
 				}
 
@@ -2761,6 +2830,7 @@ void GrowingSelection::remove_but_one(int randomIndex) {
 	m_selection_points.push_back(one_projection_point);
 	m_selection_labels.push_back(0);
 	m_selection_cell_idx.push_back(one_projection_idx);
+	only_point = one_projection_point;
 
 	//Stampa di debug, da rimuovere
 	std::cout << "current_cell_idx: " << one_projection_idx << std::endl;
