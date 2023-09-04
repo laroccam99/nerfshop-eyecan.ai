@@ -1179,7 +1179,6 @@ void Testbed::imgui() {
 
 				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
 				for (int i = operators.size()-1; i >= 0; i--) {
-					std::cout << "i: " << i << std::endl;
 					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
 					
 					if (cage_deformation) {
@@ -1226,14 +1225,14 @@ void Testbed::imgui() {
 				//Rende true tutti i bool apply_all_edits_flag di tutti i growingselections di tutti gli operatori che hanno una cage
 				std::cout << "################################################ Button APPLY Cliccato" << std::endl;
 				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
-				bool flag=false;
+				//bool flag=false;
 				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "Add operator Cage"
 				for (const auto& edit_operator : operators) {
 					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(edit_operator);
 					
 					if (cage_deformation) {						//Controllo sul tipo
-						flag = cage_deformation->m_growing_selection.get_apply_all_edits_flag();
-						std::cout << "cage_deformation " << cage_deformation << " apply_all_edits_flag : " << (flag ? "true" : "false") << std::endl;
+						//flag = cage_deformation->m_growing_selection.get_apply_all_edits_flag();
+						//std::cout << "cage_deformation " << cage_deformation << " apply_all_edits_flag : " << (flag ? "true" : "false") << std::endl;
 						cage_deformation->m_growing_selection.set_apply_all_edits_flag(true);		//setta true ???...solo se già esiste una cage per quell'operatore
 						cage_deformation->set_m_apply_poisson(true);
 					}

@@ -11,7 +11,7 @@ NGP_NAMESPACE_BEGIN
 // Launched by GrowingSelection::reset_growing selection grid
 void RegionGrowing::reset_growing(const std::vector<uint32_t>& selected_cells, int growing_level) {
     // Copy the density grid
-    std::cout << "reset_growing() " << std::endl;
+    //std::cout << "reset_growing() " << std::endl;
     m_density_grid_host.resize(m_density_grid.size());
     m_density_grid.copy_to_host(m_density_grid_host);
 

@@ -603,7 +603,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				std::cout << "random_translation:      X=" << random_float_x << "      Y=" << random_float_y << "      Z=" << random_float_z << std::endl;
 
 				do_it_once = true;										//il flag si potrebbe evitare con un do-while, ma almeno così è resettabile
-				std::cout << "do_it_once: " << do_it_once << std::endl;
+				//std::cout << "do_it_once: " << do_it_once << std::endl;
 			}
 			if (apply_all_edits_flag == true) {			//Il flag diventa True cliccando sul Button Apply_all_edits
 				std::cout << "Number of edits of current Operator: from " << num_of_iterations << std::endl;
@@ -1210,7 +1210,7 @@ void GrowingSelection::select_cage_rect(const Eigen::Matrix<float, 4, 4>& world2
 //Launched wih compute 
 void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices)
 {
-	std::cout << "GrowingSelection::set_proxy_mesh()" << std::endl;
+	//std::cout << "GrowingSelection::set_proxy_mesh()" << std::endl;
 
 	render_mode = ESelectionRenderMode::ProxyMesh;
 
@@ -1235,7 +1235,7 @@ void GrowingSelection::set_proxy_mesh(std::vector<point_t>& points, std::vector<
 
 //Launched by GrowingSelection::fix_proxy_mesh()
 void GrowingSelection::compute_proxy_mesh() {
-	std::cout << "GrowingSelection::compute_proxy_mesh()" << std::endl;
+	//std::cout << "GrowingSelection::compute_proxy_mesh()" << std::endl;
 
 	// If there is no selection mesh, extract it!
 	if (selection_mesh.vertices.size() == 0) {
@@ -1493,7 +1493,7 @@ void GrowingSelection::fix_proxy_mesh() {
 
 	// Create the associated cage!
     proxy_cage = Cage<float_t, point_t>(new_vertices_proxy, new_indices_proxy);
-	std::cout << "Proxy cage Created!" << std::endl;
+	//std::cout << "Proxy cage Created!" << std::endl;
 
 	//Set the proxy mesh using the new vertices and indices
     for (int i = 0; i < proxy_cage.colors.size(); i++) {
@@ -1502,7 +1502,7 @@ void GrowingSelection::fix_proxy_mesh() {
             m_cage_color[1],
             m_cage_color[2]);
     }
-	std::cout << "Fixed proxy cage with meshfix" << std::endl;
+	//std::cout << "Fixed proxy cage with meshfix" << std::endl;
 }
 
 void GrowingSelection::clear() {
@@ -2103,7 +2103,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 		return;
 	}
 	
-	std::cout << "GrowingSelection::project_selection_pixels()" << std::endl;
+	//std::cout << "GrowingSelection::project_selection_pixels()" << std::endl;
 
 	const uint32_t padded_output_width = m_nerf_network->padded_output_width();
 	const uint32_t padded_density_output_width = m_nerf_network->padded_density_output_width();
@@ -2261,7 +2261,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 	}
 
 	//std::cout << "ray_counter_host: " << ray_counter_host << std::endl;
-	std::cout << "m_projected_pixels_tmp size: " << m_projected_pixels_tmp.size() << std::endl;
+	//std::cout << "m_projected_pixels_tmp size: " << m_projected_pixels_tmp.size() << std::endl;
 	
 	// Set to avoid duplicate cell_idx
 	std::set<uint32_t> cell_idx_set;
@@ -2316,7 +2316,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 		std::cout << "Couldn't find surface when shooting rays..." << std::endl;
 		return;
 	}
-	std::cout << "Reprojected " << n_rays << " rays" << std::endl;
+	//std::cout << "Reprojected " << n_rays << " rays" << std::endl;
 
 	//Salva m_selected_pixels in una variabile apposita prima di eliminare il suo contenuto
 	helper_selected_pixels helperObj;
@@ -2789,7 +2789,7 @@ std::vector<Eigen::Vector2i> GrowingSelection::mega_scribble(std::vector<Eigen::
 			m_selected_pixels = arg_m_selected_pixels;
 		}
 		project_selection_pixels(m_selected_pixels, resolution, focal_length, camera_matrix, screen_center, m_stream);
-		std::cout << "project_selection_pixels DONE!" << std::endl;
+		//std::cout << "project_selection_pixels DONE!" << std::endl;
 		
 		if (m_projected_cell_idx.size() > 0) render_mode = ESelectionRenderMode::Projection;
 		return helperObj.get_selected_pixels();
@@ -2805,12 +2805,11 @@ int GrowingSelection::random_index_in_selected_pixels(){
 	//Estrae un numero casuale compreso tra 0 e m_projected_pixels.size()											
 	std::uniform_int_distribution<int> distribution(0, m_projected_pixels.size() - 1);
 	randomIndex = distribution(gen);
-	std::cout << "randomIndex: " << randomIndex << std::endl;
+	//std::cout << "randomIndex: " << randomIndex << std::endl;
 	return randomIndex;
 }
 
 void GrowingSelection::remove_but_one(int randomIndex) {
-	std::cout << "###################### remove_but_one Function " << std::endl;
 	Eigen::Vector3f one_projection_point = m_projected_pixels[randomIndex];
 	uint32_t one_projection_idx= m_projected_cell_idx[randomIndex];
 
@@ -2833,8 +2832,8 @@ void GrowingSelection::remove_but_one(int randomIndex) {
 	only_point = one_projection_point;
 
 	//Stampa di debug, da rimuovere
-	std::cout << "current_cell_idx: " << one_projection_idx << std::endl;
-	std::cout << "one_selection_point: " << one_projection_point << std::endl;
+	//std::cout << "one_selection_point: " << one_projection_idx << std::endl;
+	//std::cout << "one_selection_point: " << one_projection_point << std::endl;
 }
 
 void GrowingSelection::grow_and_cage() {
