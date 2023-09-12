@@ -1234,7 +1234,7 @@ void Testbed::imgui() {
 						//flag = cage_deformation->m_growing_selection.get_apply_all_edits_flag();
 						//std::cout << "cage_deformation " << cage_deformation << " apply_all_edits_flag : " << (flag ? "true" : "false") << std::endl;
 						cage_deformation->m_growing_selection.set_apply_all_edits_flag(true);		//setta true ???...solo se già esiste una cage per quell'operatore
-						cage_deformation->set_m_apply_poisson(true);
+						//cage_deformation->set_m_apply_poisson(true);
 					}
 				}
 /*				

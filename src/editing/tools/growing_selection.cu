@@ -631,6 +631,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				std::cout << "Final rotation matrix: " << rotation << std::endl;  
 		*/
 				translation = random_translation; 											//modifica al vettore spostamento (modifica arbitraria, verso l'alto)
+				translation << 0.000f, 0.02f, 0.000f;										//Spostamento verso l'alto
 				guizmo_translation << translation + cage_edition.selection_barycenter; 		//Rende il punto iniziale Guizmo coerente con lo spostamento, per la prossima modifica
 		//		std::cout << "Final Translation vector: " << translation << std::endl;  
 
@@ -703,7 +704,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 							std::cout << "id: " << id_distance_from_furthest_point[i].first << ", distance from vertex: " << id_distance_from_furthest_point[i].second << std::endl;
 						}*/
 						// Riempie il vettore finale con i vertici da spostare						
-						int num_vertices_around = 40;								//quanti vertici spostare attorno al più lontano
+						int num_vertices_around = 14;								//quanti vertici spostare attorno al più lontano
 						for (int i=0; i<num_vertices_around; i++) {	
 							vertices_to_move_vec.push_back(id_distance_from_furthest_point[i].first);
 						}
