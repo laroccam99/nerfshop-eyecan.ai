@@ -591,8 +591,8 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				std::random_device rd;
 				std::mt19937 gen(rd());
 				// Definisci il range di numeri casuali
-				float min_value = -0.05;
-				float max_value = 0.05;
+				float min_value = -0.03;
+				float max_value = 0.03;
 				// Crea una distribuzione uniforme tra min_value e max_value
 				std::uniform_real_distribution<float> dis(min_value, max_value);
 				// Genera un numero casuale all'interno del range
@@ -630,8 +630,8 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				guizmo_rotation << rotation * cage_edition.selection_rotation;				//Per rendere il valore Guizmo rotation coerente con la rotazione imposta
 				std::cout << "Final rotation matrix: " << rotation << std::endl;  
 		*/
-				translation = random_translation; 											//modifica al vettore spostamento (modifica arbitraria, verso l'alto)
-				translation << 0.000f, 0.02f, 0.000f;										//Spostamento verso l'alto
+				//translation = random_translation; 											//modifica al vettore spostamento (modifica arbitraria, verso l'alto)
+				//translation << 0.000f, 0.03f, 0.000f;										//Spostamento verso l'alto
 				guizmo_translation << translation + cage_edition.selection_barycenter; 		//Rende il punto iniziale Guizmo coerente con lo spostamento, per la prossima modifica
 		//		std::cout << "Final Translation vector: " << translation << std::endl;  
 
@@ -704,7 +704,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 							std::cout << "id: " << id_distance_from_furthest_point[i].first << ", distance from vertex: " << id_distance_from_furthest_point[i].second << std::endl;
 						}*/
 						// Riempie il vettore finale con i vertici da spostare						
-						int num_vertices_around = 14;								//quanti vertici spostare attorno al più lontano
+						int num_vertices_around = 9;								//quanti vertici spostare attorno al più lontano
 						for (int i=0; i<num_vertices_around; i++) {	
 							vertices_to_move_vec.push_back(id_distance_from_furthest_point[i].first);
 						}
@@ -718,7 +718,12 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 							//proxy_cage.labels[vertices_to_move_vec[i]] = 1;
 							cage_edition.selected_vertices.push_back(vertices_to_move_vec[i]);
 						}	
-						
+
+						Eigen::Vector3f from_center_vector;
+						Eigen::Vector3f sphere_center(0.5025475, 0.62293, 0.500645);			//trovato empiricamente, vale solo per il modello earth
+						float distance_from_center;
+						Eigen::Vector3f normal;
+
 						//Codice originale per applicare traslazione e rotazione ad ogni vertice
 						for (const auto selected_vertex : cage_edition.selected_vertices) {
 							// Rotate (w.r.t. barycenter)
@@ -726,8 +731,16 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 							// Scale (by rotating back, scaling and then rotation again)
 							proxy_cage.vertices[selected_vertex] = cage_edition.selection_rotation * scaling.cwiseProduct(cage_edition.selection_rotation.transpose() * (proxy_cage.vertices[selected_vertex] - cage_edition.selection_barycenter)) + cage_edition.selection_barycenter;
 							// Then, translate
-							proxy_cage.vertices[selected_vertex] += translation;
-						}						
+							
+							//Calcolo del vettore traslazione in modo che sia parallelo alla normale
+							from_center_vector = proxy_cage.vertices[selected_vertex] - sphere_center;	//Calcolo del vettore che va dal centro della sfera al punto sulla sfera
+							distance_from_center = from_center_vector.norm();						//Calcolo la norma (lunghezza) del vettore
+							normal = from_center_vector / distance_from_center;						//Calcolo della normale normalizzando il vettore
+							
+							translation = normal * 0.03;											//per ridurre l'impatto della traslazione
+							proxy_cage.vertices[selected_vertex] += translation;					//applica la traslazione
+						}			
+				
 /*						//Codice sostituito per applicare l'editing a tutti i vertici della cage e non solo a quelli selezionati in verde 		
 						for (auto& selected_vertex : proxy_cage.vertices) {
 							// Rotate (w.r.t. barycenter)
@@ -2833,8 +2846,8 @@ void GrowingSelection::remove_but_one(int randomIndex) {
 	only_point = one_projection_point;
 
 	//Stampa di debug, da rimuovere
-	//std::cout << "one_selection_point: " << one_projection_idx << std::endl;
-	//std::cout << "one_selection_point: " << one_projection_point << std::endl;
+	std::cout << "one_selection_point: " << one_projection_idx << std::endl;
+	std::cout << "one_selection_point: " << one_projection_point << std::endl;
 }
 
 void GrowingSelection::grow_and_cage() {
