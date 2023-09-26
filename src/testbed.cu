@@ -1168,7 +1168,7 @@ void Testbed::imgui() {
 */
 			ImGui::SameLine();
 			//Scribbling fatto 1 volta applicato a tutti gli operatori
-			if (ImGui::Button("B1-MegaScribble")) {	
+			if (ImGui::Button("1-MegaScribble")) {	
 				std::cout << "################################################ Button MegaScribble Cliccato" << std::endl;
 				Eigen::Vector2i resolution = m_window_res;
 				Vector2f focal_length = calc_focal_length(resolution, m_fov_axis, m_zoom);
@@ -1189,7 +1189,7 @@ void Testbed::imgui() {
 			}			
 			ImGui::SameLine();
 			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore
-			if (ImGui::Button("B2-RemoveBut1")) {	
+			if (ImGui::Button("2-RemoveBut1")) {	
 				std::cout << "################################################ Button RemoveBut1 Cliccato" << std::endl;
 				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
 				int randomIndex;
