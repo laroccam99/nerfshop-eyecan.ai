@@ -179,10 +179,8 @@ json Testbed::load_network_config(const fs::path& network_config_path) {
 		result = json::parse(f, nullptr, true, true);
 		result = merge_parent_network_config(result, network_config_path);
 	}
-
 	return result;
 }
-
 
 void Testbed::reload_network_from_file(const std::string& network_config_path_string) {
 	if (!network_config_path_string.empty()) {
@@ -194,7 +192,6 @@ void Testbed::reload_network_from_file(const std::string& network_config_path_st
 			// appropriate config when switching modes.
 			m_network_config_path = network_config_path_string;
 		//}
-
 	}
 
 	m_network_config = load_network_config(m_network_config_path);
@@ -466,7 +463,9 @@ void Testbed::imgui() {
 		ImGui::SameLine();
 		if (m_train)
 		{
-			imgui_colored_button("Hover to Stop", 0.0);
+
+			imgui_colored_button("Hover_to_Stop", 0.0);
+
 			if (ImGui::IsItemHovered())
 			{
 				m_train = false;
@@ -1081,26 +1080,28 @@ void Testbed::imgui() {
 
 			ImGui::Separator();
 			ImGui::Text("Add operator");
-
-			if (ImGui::Button("Cage")) {
-				auto cage_deformation = std::make_shared<CageDeformation>(
-					m_aabb,
-					m_training_stream,
-					m_nerf_network,
-					m_nerf.density_grid,
-					m_nerf.density_grid_bitfield,
-					m_nerf.cone_angle_constant,
-					m_nerf.rgb_activation,
-					m_nerf.density_activation,
-					m_nerf.light_dir,
-					get_filename_in_data_path_with_suffix(m_data_path, "envmap", ".png"),
-					m_nerf.max_cascade
+			if (ImGui::Button("Start")) {	
+				for (int i=0; i<m_nerf.tracer.get_max_num_operators(); i++) {		//Numero di operatori assegnabile
+					auto cage_deformation = std::make_shared<CageDeformation>(
+						m_aabb,
+						m_training_stream,
+						m_nerf_network,
+						m_nerf.density_grid,
+						m_nerf.density_grid_bitfield,
+						m_nerf.cone_angle_constant,
+						m_nerf.rgb_activation,
+						m_nerf.density_activation,
+						m_nerf.light_dir,
+						get_filename_in_data_path_with_suffix(m_data_path, "envmap", ".png"),
+						m_nerf.max_cascade
 					);
-				m_nerf.tracer.add_edit_operator(cage_deformation);
+					m_nerf.tracer.add_edit_operator(cage_deformation);				//Aggiunge operatore e obbliga max_num_operators==numero di punti output del Grow Far
+					//Setta per l'ultimo operatore aggiunto un massimo di punti di output del Grow Far, in modo che possano essere successivamente spartiti equamente (1 per operatore) 
+					cage_deformation->m_growing_selection.set_max_ed_points(m_nerf.tracer.get_max_num_operators());
+				}				
 			}
-
+/*
 			ImGui::SameLine();
-
 			if (ImGui::Button("Box Cage")) {
 				auto cage_deformation = std::make_shared<CageDeformation>(
 					m_aabb,
@@ -1115,7 +1116,6 @@ void Testbed::imgui() {
 					get_filename_in_data_path_with_suffix(m_data_path, "envmap", ".png"),
 					m_nerf.max_cascade
 					);
-
 
 				std::vector<point_t> cube_points =
 				{
@@ -1167,69 +1167,130 @@ void Testbed::imgui() {
 				update_density_grid_nerf_render(10, false, m_training_stream);
 				reset_accumulation();
 			}
+*/
+			ImGui::SameLine();
+			//Scribbling fatto 1 volta applicato a tutti gli operatori
+			if (ImGui::Button("1-MegaScribble")) {	
+				std::cout << "################################################ Button MegaScribble Cliccato" << std::endl;
+				Eigen::Vector2i resolution = m_window_res;
+				Vector2f focal_length = calc_focal_length(resolution, m_fov_axis, m_zoom);
+				Vector2f screen_center = render_screen_center();
+				std::vector<Eigen::Vector2i> m_selected_pixels;
 
+				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
+				for (int i = operators.size()-1; i >= 0; i--) {
+					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
+					
+					if (cage_deformation) {
+   					 	m_selected_pixels = cage_deformation->m_growing_selection.mega_scribble(m_selected_pixels, resolution, focal_length, screen_center, m_smoothed_camera);
+						std::cout << "m_selected_pixels.size(): " << m_selected_pixels.size() << std::endl;
+					}
+				}			
+			}			
+			ImGui::SameLine();
+			//Prende i punti superficiali dall'ultimo operatore e ne assegna 1 ad ogni operatore
+			if (ImGui::Button("2-RemoveBut1")) {	
+				std::cout << "################################################ Button RemoveBut1 Cliccato" << std::endl;
+				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+				int randomIndex;
+
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
+				for (int i = operators.size()-1; i >= 0; i--) {
+					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
+					//Estrae punti casuali per ogni operatore (DEVONO ESSERE DIVERSI E DISTANTI)
+					if (cage_deformation) {						//Controllo sul tipo
+						randomIndex = cage_deformation->m_growing_selection.random_index_in_selected_pixels();
+						//Lascia solo il punto scelto al singolo operatore
+						cage_deformation->m_growing_selection.remove_but_one(randomIndex);
+					}
+				}			
+			}
+			ImGui::SameLine();
+			//Per ogni operatore effettua un grow_region() e costruisce una cage
+			if (ImGui::Button("3_Grow&Cage")) {
+				std::cout << "################################################ Button Grow&Cage Cliccato" << std::endl;
+				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "START"
+				for (int i = 0; i < operators.size(); ++i) {
+					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(operators[i]);
+					
+					if (cage_deformation) {						//Controllo sul tipo
+						cage_deformation->m_growing_selection.grow_and_cage();
+					}
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("4_APPLY")) {		
+				//Rende true tutti i bool apply_all_edits_flag di tutti i growingselections di tutti gli operatori che hanno una cage
+				std::cout << "################################################ Button APPLY Cliccato" << std::endl;
+				std::vector<std::shared_ptr<EditOperator>> operators = m_nerf.tracer.get_edit_operators();
+				//bool flag=false;
+				//Scorre tutti gli edit_operators aggiunti inizialmente con il Button "Add operator Cage"
+				for (const auto& edit_operator : operators) {
+					std::shared_ptr<CageDeformation> cage_deformation = std::dynamic_pointer_cast<CageDeformation>(edit_operator);
+					
+					if (cage_deformation) {						//Controllo sul tipo
+						//flag = cage_deformation->m_growing_selection.get_apply_all_edits_flag();
+						//std::cout << "cage_deformation " << cage_deformation << " apply_all_edits_flag : " << (flag ? "true" : "false") << std::endl;
+						cage_deformation->m_growing_selection.set_apply_all_edits_flag(true);		//setta true ???...solo se già esiste una cage per quell'operatore
+						//cage_deformation->set_m_apply_poisson(true);
+					}
+				}
+/*				
+				//Switcha tra tutti gli operatori attivi in modo da applicare le modifiche a tutti
+				m_nerf.tracer.set_active_edit_operator(m_nerf.tracer.get_edit_operators().size()-1);	//mostra l'ultimo operatore
+				std::cout << "active_edit_operator START: " << m_nerf.tracer.active_edit_operator() << std::endl;
+				
+				while (m_nerf.tracer.active_edit_operator() !=0) { 													//NON FUNZIONA, NON APPLICA LE MODIFICHE
+				m_nerf.tracer.set_active_edit_operator(m_nerf.tracer.active_edit_operator()-1);
+				std::cout << "active_edit_operator decreased to: " << m_nerf.tracer.active_edit_operator() << std::endl;
+				}
+
+				m_nerf.tracer.set_active_edit_operator(m_nerf.tracer.get_edit_operators().size()-1);	//mostra l'ultimo operatore
+				std::cout << "active_edit_operator reset to MAX " << std::endl;
+
+				// Memorizza il valore originale
+				int originalValue = m_nerf.tracer.active_edit_operator();
+
+				// Simula l'interazione con lo slider impostando un valore specifico
+				int simulatedValue = 2; // Valore simulato
+				m_nerf.tracer.active_edit_operator() = simulatedValue;
+
+				// Chiama ImGui::SliderInt per rendere ImGui consapevole dell'interazione simulata
+				ImGui::SliderInt("Active Operator", &(m_nerf.tracer.active_edit_operator()), -1, m_nerf.tracer.edit_operators().size() - 1);
+
+				// Reimposta il valore originale subito dopo
+				m_nerf.tracer.active_edit_operator() = originalValue;
+*/				
+			}
 			ImGui::Separator();
 
-			//if (ImGui::Button("Add Twist Operator")) {
-			//	AffineBoundingBox selection_zone(m_aabb.center(), m_aabb.diag()[0]/10.f);
-			//	Eigen::Vector3f selection_translation(0.0f, m_aabb.diag()[0]/10.f, 0.0f);
-			//	float angle = 1.57f;
-			//	auto twist_operator = std::make_shared<TwistOperator>(selection_zone, angle, m_aabb);
-			//	m_nerf.tracer.add_edit_operator(twist_operator);
-			//	// Update the density grid with the new transformation
-			//	update_density_grid_nerf_render(10, false, m_training_stream);
-			//	reset_accumulation();
-			//}
+
 			if (m_nerf.tracer.edit_operators().size() > 0 && imgui_colored_button("Remove All", 0.0)) {
 				m_nerf.tracer.reset_edit_operators();
 			}
 
-			// Edits load/save pipeline
-			 //static char edits_filename_buf[128] = "";
-			 //if (edits_filename_buf[0] == '\0') {
-			 //	snprintf(edits_filename_buf, sizeof(edits_filename_buf), "%s", get_filename_in_data_path_with_suffix(m_data_path, "edits", ".json").c_str());
-			 //}
-
-			 //if (ImGui::Button("Save")) {
-			 //	save_edits(edits_filename_buf);
-			 //}
-			 //ImGui::SameLine();
-			 //static std::string edits_load_error_string = "";
-			 //if (ImGui::Button("Load")) {
-			 //	try {
-			 //		load_edits(edits_filename_buf);
-			 //	} catch (std::exception& e) {
-			 //		ImGui::OpenPopup("Edits load error");
-			 //		edits_load_error_string = std::string{"Failed to load edits: "} + e.what();
-			 //	}
-			 //	update_density_grid_nerf_render(10, false, m_training_stream);	
-			 //	reset_accumulation();
-			 //}
-			 //ImGui::SameLine();
-			 //if (ImGui::BeginPopupModal("Edits load error", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-			 //	ImGui::Text("%s", edits_load_error_string.c_str());
-			 //	if (ImGui::Button("OK", ImVec2(120, 0))) {
-			 //		ImGui::CloseCurrentPopup();
-			 //	}
-			 //	ImGui::EndPopup();
-			 //}
-			 //ImGui::SameLine();
-			 //ImGui::InputText("File", edits_filename_buf, sizeof(edits_filename_buf));
-
 			if (m_nerf.tracer.edit_operators().size() > 0) {
-
+				//Calculate the resolution, focal length, and screen center based on the window resolution, field of view, and zoom level
 				Eigen::Vector2i resolution = m_window_res;
 				Vector2f focal_length = calc_focal_length(resolution, m_fov_axis, m_zoom);
 				Vector2f screen_center = render_screen_center();
 
 				// ImGui::Text("Active Operator");
 				// if (m_nerf.tracer.active_edit_operator() >= 0 && m_nerf.tracer.edit_operators().size() > 0)
+
+				// If there are edit operators, it creates a slider for selecting the active operator
 				if (m_nerf.tracer.edit_operators().size() > 0)
+					//Parametri: nome, contenuto, minimo, massimo
 					ImGui::SliderInt("Active Operator", &(m_nerf.tracer.active_edit_operator()), -1, m_nerf.tracer.edit_operators().size() - 1);
 				bool imgui_edit = false;
-				for (int i = 0; i < m_nerf.tracer.edit_operators().size(); i++) {
+
+				for (int i = 0; i < m_nerf.tracer.edit_operators().size(); i++) {					//It iterates through all the edit operators
 					auto edit_operator = m_nerf.tracer.edit_operators()[i];
-					if (i == m_nerf.tracer.active_edit_operator()) {
+					if (i == m_nerf.tracer.active_edit_operator()) {			//It sets the style color for the operator based on whether it is the active operator or not
 						ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.26f, 0.59f, 0.25f, 0.31f));
 					} else {
 						ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.00f));
@@ -1237,34 +1298,32 @@ void Testbed::imgui() {
 					bool delete_operator = false;
 
 					// Create a new stack ID to support buttons with the same name!
-					ImGui::PushID(i);
-					ImGui::SetNextItemOpen(i == m_nerf.tracer.active_edit_operator());
+					ImGui::PushID(i);											//Push unique ID for the operator to support buttons with the same name
+					ImGui::SetNextItemOpen(i == m_nerf.tracer.active_edit_operator());	//Calls the "imgui" function of the edit operator
 					imgui_edit |= edit_operator->imgui(delete_operator, resolution, focal_length, m_smoothed_camera, screen_center, m_auto_clean);
 					// if (i == m_nerf.tracer.active_edit_operator()) {
 					// 	ImGui::PopStyleColor();
 						
 					// }
-					ImGui::PopStyleColor();
-					// Enable drag and drop reordering of operators
-					if (ImGui::IsItemActive() && !ImGui::IsItemHovered())
+					ImGui::PopStyleColor();										//Pops the style color
+					if (ImGui::IsItemActive() && !ImGui::IsItemHovered())		//Enable drag and drop reordering of operators
 					{
-						int i_next = i + (ImGui::GetMouseDragDelta(0).y < 0.f ? -1 : 1);
-						if (i_next >= 0 && i_next < m_nerf.tracer.edit_operators().size())
-						{
+						int i_next = i + (ImGui::GetMouseDragDelta(0).y < 0.f ? -1 : 1);	//index of the next operator based on the mouse drag delta
+						if (i_next >= 0 && i_next < m_nerf.tracer.edit_operators().size()){
 							m_nerf.tracer.edit_operators()[i] = m_nerf.tracer.edit_operators()[i_next];
 							m_nerf.tracer.edit_operators()[i_next] = edit_operator;
 							if (m_nerf.tracer.active_edit_operator() == i || m_nerf.tracer.active_edit_operator() == i_next) {
-								m_nerf.tracer.active_edit_operator() = (m_nerf.tracer.active_edit_operator() == i) ? i_next : i;
+								m_nerf.tracer.active_edit_operator() = (m_nerf.tracer.active_edit_operator() == i) ? i_next : i;	//Inversione ordine operatori
 							}
 							ImGui::ResetMouseDragDelta();
 						}
 					}
 					ImGui::PopID();
-					if (delete_operator) {
+					if (delete_operator) {										//If the operator is flagged for deletion, deletes the operator from the tracer
 						m_nerf.tracer.delete_edit_operator(i);
 					}
 				}
-				if (imgui_edit) {
+				if (imgui_edit) {	// If any changes were made to the edit operators in the ImGui interface, updates  density grid and resets the accumulation
 					update_density_grid_nerf_render(50, false, m_training_stream);
 					reset_accumulation();
 				}
@@ -1278,46 +1337,7 @@ void Testbed::imgui() {
 				m_distill = true;
 				set_train(true);
 			}
-			//ImGui::SliderInt("Batch size", &m_student_trainer_batch_size, 8, 18);
-
-			//if (ImGui::Button("Init student")) {
-			//	m_student_trainer.init_student(m_network_config, m_nerf_network, m_aabb, m_nerf.density_grid, m_nerf.max_cascade, m_nerf.training.dataset.aabb_scale, m_training_stream);
-			//}
-			//ImGui::SameLine();
-			//if (imgui_colored_button(m_train_student ? "Stop training" : "Start training", 0.4)) {
-			//	m_train_student = !m_train_student;
-			//}
-			//ImGui::SameLine();
-			//if (imgui_colored_button(m_render_student ? "Render teacher" : "Render student", 0.4)) {
-			//	m_render_student = !m_render_student;
-			//}
-			//ImGui::SameLine();
-			//if (ImGui::Button("Get Student")) {
-			//	m_network = m_nerf_network = m_student_trainer.student_network();
-			//	m_loss = m_student_trainer.loss();
-			//	m_optimizer = m_student_trainer.optimizer();
-			//	m_trainer = m_student_trainer.trainer();
-			//}
-			//ImGui::Checkbox("Display Debug Student", &m_display_student_debug);
-			//if (m_display_student_debug) {
-			//	ImGui::SameLine();
-			//	ImGui::Checkbox("Teacher samples", &m_display_teacher_samples);
-			//}
-			//ImGui::Checkbox("Smooth samples", &m_student_trainer.use_gaussian_smoothing);
-			//if (m_student_trainer.use_gaussian_smoothing) {
-			//	ImGui::SliderFloat("Sigma smoothing ", &m_student_trainer.sigma_smoothing, 1e-14, 0.1, "%.14f", ImGuiSliderFlags_Logarithmic);
-			//	ImGui::SliderInt("Smoothing samples ", &m_student_trainer.n_gaussian_samples, 1, 100, "%d", ImGuiSliderFlags_Logarithmic);
-			//}
-			//ImGui::SliderFloat("Lambda features ", &m_student_trainer.lambda_features, 0.001, 10.0, "%f", ImGuiSliderFlags_Logarithmic);
-			//ImGui::SliderInt("Trained levels ", &m_student_trainer.n_trained_encoding_levels, 1, m_student_trainer.n_encoding_levels);
-			//ImGui::SliderInt("Rejection samples ", &m_student_trainer.n_rejections, 1, 100, "%d", ImGuiSliderFlags_Logarithmic);
-			//ImGui::Text("Steps: %d, Loss: %0.6f", m_student_trainer.training_step(), m_student_trainer.loss_scalar);
-			//ImGui::Text("Requested batch size: %d,\nSub batch size: %d,\nn sub batches: %d", 1 << m_student_trainer_batch_size, m_student_trainer.sub_batch_size, m_student_trainer.n_sub_batches);
-			//ImGui::PlotLines("loss", m_student_loss_graph, std::min(m_student_loss_graph_samples, 256u), (m_student_loss_graph_samples < 256u) ? 0 : (m_student_loss_graph_samples & 255u), 0, FLT_MAX, FLT_MAX, ImVec2(0, 50.f));
 		}
-		
-/*		ImGui::NextWindowPos(ImVec2(main_viewport->WorkPos.x + main_viewport->WorkSize.x - 350, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver)*/;
-		
 	}
 	ImGui::End();
 
@@ -2068,7 +2088,7 @@ bool Testbed::frame() {
 			gather_histograms();
 		}
 
-		draw_gui();
+		draw_gui();				//Qui lo Split Button dà eccezione Exception thrown at 0x000001D75B91FEE7 in nerfshop.exe: 0xC0000005: Access violation reading location 0x0000000000000000.
 	}
 #endif
 

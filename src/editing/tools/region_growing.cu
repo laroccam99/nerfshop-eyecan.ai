@@ -4,9 +4,6 @@
 #include <cmath>
 #include <tiny-cuda-nn/common_device.h>
 #include <functional>
-#include <map>
-#include <unordered_set>
-#include <iterator>
 
 NGP_NAMESPACE_BEGIN
 
@@ -14,6 +11,7 @@ NGP_NAMESPACE_BEGIN
 // Launched by GrowingSelection::reset_growing selection grid
 void RegionGrowing::reset_growing(const std::vector<uint32_t>& selected_cells, int growing_level) {
     // Copy the density grid
+    //std::cout << "reset_growing() " << std::endl;
     m_density_grid_host.resize(m_density_grid.size());
     m_density_grid.copy_to_host(m_density_grid_host);
 
@@ -95,21 +93,23 @@ void RegionGrowing::upscale_selection(int current_level) {
     m_growing_queue = new_growing_queue;
 }
 
-//GUI Button "Grow region", second function
-void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode region_growing_mode, int growing_level, int growing_steps) {
+//GUI Button "Grow region" and "Grow Far", second function
+void RegionGrowing::grow_region(bool ed_flag, float density_threshold, ERegionGrowingMode region_growing_mode, int growing_level, int growing_steps) {
+    std::cout << "grow_region()" << std::endl;;
+
     // Make sure we can actually grow!
     if (m_growing_queue.empty()) {
         std::cout << "Growing queue is empty!" << std::endl;
         return;
     }
-    m_growing_level = growing_level; 
+    m_growing_level = growing_level;            //attenzione a growing_level che sta a 0 
 
     int i = 1;
 
     if (region_growing_mode == ERegionGrowingMode::Manual) {
         while (!m_growing_queue.empty() && i <= growing_steps) {
-            uint32_t current_cell = m_growing_queue.front();
-            float current_density = m_density_grid_host[current_cell];
+            uint32_t current_cell = m_growing_queue.front();                //current_cell = m_selection_cell_idx 
+            float current_density = m_density_grid_host[current_cell];      //con operatori secondari, di base m_density_grid_host sarebbe vuoto 
             m_growing_queue.pop();
 
             // Get position (with corresponding level) to fetch neighbours
@@ -117,8 +117,9 @@ void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode regi
             uint32_t pos_idx = current_cell % (NERF_GRIDVOLUME());
 
             // Sample accepted only if at requested level, statisfying density threshold and not already selected!
-            if (!get_bitfield_at(pos_idx, level, m_selection_grid_bitfield.data()) && current_density >= density_threshold && level == m_growing_level) {
-                
+            if (!get_bitfield_at(pos_idx, level, m_selection_grid_bitfield.data())) {                           //ERRORE Access violation reading location 0x0000000000063E23
+                if(current_density >= density_threshold){                   //serve current_density + alta
+                if (level == m_growing_level) {
                 // Test whether the new sample touches the boundary, if yes then upscale!
                 if (is_boundary(pos_idx)) {
                     std::cout << "UPSAMPLING" << std::endl;
@@ -142,45 +143,40 @@ void RegionGrowing::grow_region(float density_threshold, ERegionGrowingMode regi
                 m_selection_cell_idx.push_back(current_cell);
                 set_bitfield_at(pos_idx, level, true, m_selection_grid_bitfield.data());
                 //std::cout << "m_selection_cell_idx: " << current_cell << std::endl;
+
+            }
+                }
+
             }
             i++;
         }
  
-        //SI POTREBBE AGGIUNGERE QUI UN CONTROLLO SUI DUPLICATI
+        //SI POTREBBE AGGIUNGERE QUI UN CONTROLLO SUI PUNTI DUPLICATI POST GROWING
 		//aggiungere tutto ad un set e poi assegnare il contenuto a m_selection_points, 
         //ma bisognerebbe anche sistemare m_selection_cell_idx e m_selection_grid_bitfield
-        
-        if (equidistant_points_flag){               //Check per attivare o no la modalità punti superficiali equidistanti 
+
+        //Si prosegue solo con il Grow Far Button
+        if(ed_flag){
             equidistant_points(min_ed_points_threshold);
-        } 
-
-    }
-    // TODO: not supported yet!!!!!!! 
-    else {
-        // // Compute features and test distances for all the cells currently in the queue
-        // std::vector<uint32_t> tentative_cells;
-        // std::vector<NerfCoordinate> tentative_coordinates;
-        // std::vector<FeatureVector> tentative_features;
-        // // Compute the corresponding coordinates
-        // for (int j = 0; j < tentative_cells.size(); j++) {
-
-        // }
-        // while (!growing_queue.empty() && i <= growing_steps) {
-        //     uint32_t current_cell = growing_queue.front();
-        //     float current_density = density_grid_host[current_cell];
-        //     growing_queue.pop();
-        //     // Test for density!
-        //     if (current_density >= density_threshold) {
-
-        //     }
-        //     i++;
-        // }
-        // // Test 
-    }
+        }    
+    }        
     // std::cout << "Selected " << m_selection_points.size() << " points overall" << std::endl;
 }
 
-//Codice aggiunto per selezionare in modo uniforme solo alcuni punti superficiali distanti; si ferma al raggiungimento della soglia minima
+bool not_zero_coordinate(Eigen::Vector3f point_to_check) {
+    //std::cout << "point_to_check: " << point_to_check << std::endl;
+    if (point_to_check == Eigen::Vector3f(0.0f, 0.0f, 0.0f)) {
+        std::cout << " Zero Coordinate Point discarded------------------------------------------------------------------------------- " << std::endl;
+        return false;
+    }
+    else {
+        return true;
+    }
+}
+
+
+//DA FIXARE, NON PRENDE SEMPRE PUNTI DISTANTI IN TERMINI DI COORDINATE######################################################################
+//Seleziona in modo uniforme solo alcuni punti superficiali distanti; si ferma al raggiungimento della soglia minima
 void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
     std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
     //Vettori temporanei 
@@ -194,60 +190,64 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
          std::cout << "RegionGrowing::equidistant_points() failed: Not enough superficial points selected. Try with a higher growing level."<< std::endl;
         return;
     }
+    selection_map selection_mapObj;
 
-    std::hash<float> hashFunction;
-    std::size_t id;
-
-    for (int i = 0; i < m_selection_points.size(); i++) {
-        if (count % interval == 0) {
+    for (int i = 0; i < m_selection_points.size() && m_temp_points.size() < max_ed_points_limit; i++) {
+        if ((count % interval == 0) && (not_zero_coordinate(m_selection_points[i]))) {
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
-            // Genera un ID basato sulle coordinate numeriche nel Vector3f e salva l'ID e la coordinata nella struttura dati
-            id = hashFunction(m_selection_points[i].x()) ^ hashFunction(m_selection_points[i].y()) ^ hashFunction(m_selection_points[i].z());
-            m_selection_points_map.insert(std::make_pair(id, m_selection_cell_idx[i]));
-            //std::cout << "Growing point added A: "<< i << std::endl;
-            //std::cout << "Growing point: "<< id << " added" << std::endl;
+            //Aggiornamento Mappa utilizzata dallo SPLIT Button
+            selection_mapObj.add_to_privateMap(m_selection_cell_idx[i], m_selection_points[i]);        
+            //vstd::cout << "Growing point added: "<< i << " with id: " << id << std::endl;
         }
         count++;
     }
-
-    // Sostituisci i vecchi vettori con quelli aggiornati
+    
+    // Sostituisce i vecchi vettori con quelli aggiornati
     m_selection_points = m_temp_points;
     m_selection_cell_idx = m_temp_idx;
     std::cout << "POST m_selection_points size: "<< m_selection_points.size() << std::endl;
 }  
 
+
+//DA FIXARE, NON PRENDE SEMPRE PUNTI DISTANTI IN TERMINI DI COORDINATE######################################################################
 //Seleziona in modo uniforme solo alcuni punti superficiali distanti; intervallo scelto dall'utente; continua finchè non supera la soglia minima
-void RegionGrowing::equidistant_points(int e, int interval) {
+void RegionGrowing::equidistant_points(int min_ed_points_threshold, int interval) {
     std::cout << "PRE m_selection_points size: "<< m_selection_points.size() << std::endl;
     //Vettori temporanei 
     std::vector<Eigen::Vector3f> m_temp_points;
     std::vector<uint32_t> m_temp_idx;
     int count = 0;                                                                              //counter per scorrere l'array
+    selection_map selection_mapObj;
 
-    for (int i = 0; i < m_selection_points.size(); i++) {
+    for (int i = 0; i < m_selection_points.size() && m_temp_points.size() < max_ed_points_limit; i++) {
         if (count % interval == 0) {
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
+            selection_mapObj.add_to_privateMap(m_selection_cell_idx[i], m_selection_points[i]);
+
             //std::cout << "Growing point added A: "<< i << std::endl;
         }
         count++;
     }
 
     int interval2 = 0;
-    int remaining_ud_points = e - m_temp_points.size();
+    int remaining_ud_points = min_ed_points_threshold - m_temp_points.size();
     if ( remaining_ud_points > 0) {
         interval2 = static_cast<int>(m_selection_points.size() / remaining_ud_points);
         if (interval == 0){
             std::cout << "RegionGrowing::equidistant_points() failed: Not enough superficial points selected. Try with a higher growing level."<< std::endl;
             return;
         }
-        for (int i = 0; i < m_selection_points.size() && remaining_ud_points > 0; i++) {
+        for (int i = 0; i < m_selection_points.size() && remaining_ud_points > 0 && m_temp_points.size() < max_ed_points_limit; i++) {
             if (count % interval2 == 0) {
                 auto it = std::find(m_temp_points.begin(), m_temp_points.end(), m_selection_points[i]); //restituisce puntatore a ultimo elemento, se non trova l'oggetto
                 if (it == m_temp_points.end()) {                            //se l'oggetto non è presente, viene aggiunto 
                     m_temp_points.push_back(m_selection_points[i]);
                     m_temp_idx.push_back(m_selection_cell_idx[i]);
+                    //INSERIMENTO NELLA MAPPA NON TESTATO###########
+                    selection_mapObj.add_to_privateMap(m_selection_cell_idx[i], m_selection_points[i]); 
+
                     remaining_ud_points--;
                     //std::cout << "Growing point added B: "<< i << std::endl;
                 }

@@ -192,6 +192,44 @@ struct GrowingSelection {
 
 	void set_proxy_mesh(std::vector<point_t>& points, std::vector<uint32_t>& indices);
 
+    void set_render_mode_to_PROJ();
+
+        std::vector<Eigen::Vector2i> mega_scribble(std::vector<Eigen::Vector2i> m_selected_pixels, Eigen::Vector2i resolution, Vector2f focal_length, Vector2f screen_center, Eigen::Matrix<float, 3, 4> camera_matrix);
+
+
+    //Utilizzato dal Button Grow Far
+    int get_m_grow_far_steps(){
+        return m_grow_far_steps;
+    }
+
+    //Utilizzato dal Button Grow Region e Grow&Cage
+    int get_m_growing_steps(){ 
+        return m_growing_steps;
+    }
+
+    //Permette di sincronizzare il numero di operatori con il numero di punti output del Grow Far
+    //Metodo utilizzato con lo Start Button quando vengono creati i max_num_operators (in testbed.cu), chiamato da add_edit_operator() 
+    void GrowingSelection::set_max_ed_points(int max_num_operators) {
+        //std::cout << "Initial max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
+        m_region_growing.set_max_ed_points_limit(max_num_operators);
+        m_region_growing.set_min_ed_points_threshold(max_num_operators);
+        //std::cout << "Final max_ed_points_limit: " << m_region_growing.get_max_ed_points_limit() << "; min_ed_points_threshold: " << m_region_growing.get_min_ed_points_threshold() << std::endl;
+    }
+    int GrowingSelection::random_index_in_selected_pixels();
+    
+    void remove_but_one(int randomIndex);
+
+    //Per il singolo operatore combina il growing e la costruzione della cage
+    void grow_and_cage();
+
+    //Modifica il flag che permette le modifiche automaticamente quando è true
+    void set_apply_all_edits_flag(bool value);
+
+    //Utilizzato solo per stampa debug, da rimuovere
+    bool get_apply_all_edits_flag(){
+        return apply_all_edits_flag;
+    }
+
 private:
 
     // Selection specifics
@@ -229,7 +267,7 @@ private:
     bool m_automatic_max_level = true;
     uint32_t m_max_cascade;
 
-    // Projected pixels
+    // Projected pixels (post-scribbling)
     std::vector<Eigen::Vector3f> m_projected_pixels;
     std::vector<uint8_t> m_projected_labels;
     std::vector<uint32_t> m_projected_cell_idx;
@@ -243,9 +281,12 @@ private:
     std::vector<uint8_t> m_selection_labels;
     std::vector<uint32_t> m_selection_cell_idx;
     std::vector<uint8_t> m_selection_grid_bitfield;
+    Eigen::Vector3f only_point;
+
 
     // Region-growing
-    int m_growing_steps = 10000;
+    int m_growing_steps = 200;                         //utilizzato per il grow_region normale
+    int m_grow_far_steps = 25000;                       //utilizzato per il grow far button
     int m_growing_level = 0;
     float m_density_threshold = 0.01f;
     ERegionGrowingMode m_region_growing_mode = ERegionGrowingMode::Manual;
@@ -281,6 +322,11 @@ private:
 
     // Automatically update the tet when a manipulation is performed
     bool m_update_tet_manipulation = true;
+    bool do_it_once = false;                    //con un do-while si potrebbe evitare questa variabile, ma almeno ora è resettabile 
+    point_t random_translation = point_t(0.000f, 0.0f, 0.000f);
+    bool apply_all_edits_flag = false;          //se true, viene attuata la modifica (trasl/rotaz) automatica alla cage
+    const int max_number_of_iterations = 1;     //siccome è specifico di un operatore solo, va fissato a 1
+    int num_of_iterations = 0;                  //counter di modifiche automatiche avviate, di solito va da 0 a 1
 
     std::vector<Eigen::Vector3f> m_debug_points;
     std::vector<Eigen::Vector3f> m_debug_colors;
@@ -329,7 +375,7 @@ private:
     void upscale_growing();
 
     // Grow region (by user-selected steps)
-    void grow_region();
+    void grow_region(bool ed_flag, int growing_steps);
 
     // ------------------------
     // Morphological Operators
@@ -350,9 +396,6 @@ private:
 
     // Decimate fine mesh with linear bounding constraint
     void compute_proxy_mesh();
-
-    // Decimate all fine meshes  
-    void compute_all_proxy_mesh();
     
     // Not used in practice
     void fix_fine_mesh();

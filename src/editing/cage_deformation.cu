@@ -742,6 +742,7 @@ bool CageDeformation::imgui(bool& delete_operator, const Vector2i& resolution, c
         if (m_growing_selection.tet_interpolation_mesh) {
             //update_transformation |= ImGui::Checkbox("Apply residuals", &m_apply_residuals);
             update_transformation |= ImGui::Checkbox("Apply Membrane Correction (alpha)", &m_apply_poisson);
+			//if(update_transformation) std::cout << "update_transformation" << update_transformation << std::endl; 
             update_transformation |= ImGui::SliderFloat("Residuals Amplitude", &m_residual_amplitude, 0.f, 10.f);
         }
 

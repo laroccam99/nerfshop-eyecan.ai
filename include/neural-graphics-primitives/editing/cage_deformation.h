@@ -142,6 +142,11 @@ public:
     bool handle_keyboard() override;
 
     bool visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view2proj, const Eigen::Matrix<float, 4, 4> &world2proj, const Eigen::Matrix<float, 4, 4> &world2view, const Eigen::Vector2f& focal, float aspect, float time) override;
+
+    void set_m_apply_poisson(bool value) {
+        m_apply_poisson = value;
+    }
+
 #endif
 
     void draw_gl(

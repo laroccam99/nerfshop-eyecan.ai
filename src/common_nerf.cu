@@ -114,6 +114,7 @@ __device__ float advance_to_next_voxel(float t, float cone_angle, const Vector3f
 	return t;
 }
 
+//Avviato quando si fa lo scribbling e la proiezione
 __device__ uint32_t cascaded_grid_idx_at(Vector3f pos, uint32_t mip) {
 	float mip_scale = scalbnf(1.0f, -mip);
 	pos -= Vector3f::Constant(0.5f);
@@ -122,6 +123,7 @@ __device__ uint32_t cascaded_grid_idx_at(Vector3f pos, uint32_t mip) {
 
 	Vector3i i = (pos * NERF_GRIDSIZE()).cast<int>();
 
+	//Checks if any of the components of the integer vector are outside the range [-1, NERF_GRIDSIZE()]
 	if (i.x() < -1 || i.x() > NERF_GRIDSIZE() || i.y() < -1 || i.y() > NERF_GRIDSIZE() || i.z() < -1 || i.z() > NERF_GRIDSIZE()) {
 		printf("WTF %d %d %d\n", i.x(), i.y(), i.z());
 	}
@@ -152,7 +154,8 @@ __device__ float& cascaded_grid_at(Vector3f pos, float* cascaded_grid, uint32_t 
 
 //Launched by RegionGrowing::grow_region()
 __host__ __device__ bool get_bitfield_at(const uint32_t cell_idx, const uint32_t level, const uint8_t* bitfield)  {
-	return bitfield[cell_idx/8+grid_mip_offset(level)/8] & (1<<(cell_idx%8));
+	//cell_idx/8 = Byte index		+		grid_mip_offset(level)/8 = Offset
+	return bitfield[cell_idx/8+grid_mip_offset(level)/8] & (1<<(cell_idx%8));											//Access violation reading location 0x0000000000063E23
 }
 
 //Launched by RegionGrowing::grow_region()
