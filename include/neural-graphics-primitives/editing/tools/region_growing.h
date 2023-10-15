@@ -22,6 +22,9 @@ enum class ERegionGrowingMode : int {
 };
 
 static constexpr const char* RegionGrowingModeStr = "Manual\0AppearanceBased\0\0";
+// Definizione del tipo di dato per memorizzare gli ID e le coordinate
+typedef std::map<std::size_t, Vector3f> CoordinateMap;
+CoordinateMap m_selection_points_map;
 
 class RegionGrowing {
 public:
@@ -99,6 +102,10 @@ public:
     void equidistant_points(int min_ud_points_threshold);  
     void equidistant_points(int min_ud_points_threshold, int interval);
 
+    void equidistant_points(int min_ud_points_threshold);
+    
+    void equidistant_points(int min_ud_points_threshold, int interval);
+
     nlohmann::json to_json();
 
     void load_json(nlohmann::json& j);
@@ -107,9 +114,11 @@ private:
     // Max cascade as specified with the dataset
     const uint32_t m_max_cascade;
     uint32_t m_growing_level;
+
     //I valori di min_ed_points_threshold e max_ed_points_limit impostati qui vengono sovrascritti dal Button START in testbed.h in modo che abbiano valore == a max_num_operators di testbed.m_nerf.tracer
     int min_ed_points_threshold = 10;                   //soglia minima di punti equidistanti da ottenere
     int max_ed_points_limit = 10;                       //soglia massima di punti eq da ottenere
+
 
     // Const data from the NeRF model
     const tcnn::GPUMemory<float>& m_density_grid; // NERF_GRIDSIZE()^3 grid of EMA smoothed densities from the network

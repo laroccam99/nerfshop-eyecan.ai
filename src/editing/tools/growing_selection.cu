@@ -38,6 +38,10 @@
 #include <imguizmo/ImGuizmo.h>
 
 NGP_NAMESPACE_BEGIN
+const int max_number_of_iterations = 1;
+extern int num_of_iterations = 0;
+//std::set<GrowingSelection> GS_Set;		//inutilizzato
+
 
 GrowingSelection::GrowingSelection(
         BoundingBox aabb,
@@ -140,6 +144,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			render_mode = ESelectionRenderMode::RegionGrowing;
 		}
 		ImGui::SameLine(); 
+
 		if(ImGui::Button("A1_GROW FAR")) {
 			grow_region(true, get_m_grow_far_steps());
 			render_mode = ESelectionRenderMode::RegionGrowing;
@@ -175,6 +180,7 @@ bool GrowingSelection::imgui(const Vector2i& resolution, const Vector2f& focal_l
 			{
 				ImGui::SameLine();
 				// Will extract and clean the proxy directly, then compute the tet mesh and extract it as well
+
 				if (ImGui::Button("COMPUTE1")) {
 					ImGui::Text("Please wait, computing proxy...");
 					fix_proxy_mesh();
@@ -511,6 +517,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
         0, 0, 1, 0;
 
     ImGuiIO& io = ImGui::GetIO();
+
 	//Set the ImGuizmo rectangle to cover the entire display area.
     ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 
@@ -518,6 +525,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 	if (m_rigid_editing && cage_edition.selected_vertices.size() == 0)
 	{
 		for (int i = 0; i < proxy_cage.vertices.size(); i++) cage_edition.selected_vertices.push_back(i);
+
 		//Initialize the vertex selection
 		cage_edition.selection_barycenter = point_t::Zero();
 		if (!m_plane_dir.isZero())
@@ -555,6 +563,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 */
 	}
 
+
 	//Create an edit_matrix to store the transformation matrix for the selected vertices.
     Eigen::Matrix4f edit_matrix;
 	//point_t guizmo_scale = point_t(1.0f, 1.0f, 1.0f);
@@ -567,6 +576,7 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 		|| render_mode == ESelectionRenderMode::TetMesh 
 		|| render_mode == ESelectionRenderMode::Off) 
 /*		&&  ImGuizmo::Manipulate((const float*)&world2view, 	//fa apparire l'interfaccia di ImGuizmo per manipolare manualmente la deformazione
+
 		(const float*)&view2proj_guizmo, 
 		(ImGuizmo::OPERATION)m_gizmo_op, 
 		(ImGuizmo::MODE)m_gizmo_mode, 
@@ -773,7 +783,9 @@ bool GrowingSelection::visualize_edit_gui(const Eigen::Matrix<float, 4, 4> &view
 				}
 
 				//SI POTREBBE ATTIVARE UN FLAG QUI PER SWITCHARE OPERATORE DA testbed.cu
+
 			}
+			
 		}
 	}
 
@@ -1320,6 +1332,86 @@ void GrowingSelection::compute_proxy_mesh() {
 	set_proxy_mesh(new_vertices_proxy, new_indices_proxy);
 }
 
+//ADATTARE IN MODO DA FAR CREARE UNA PROXY MESH PER OGNI PUNTO NEL m_selection_points
+void GrowingSelection::compute_all_proxy_mesh() {
+	std::cout << "GrowingSelection::compute_all_proxy_mesh()" << std::endl;
+	std::cout << "m_selection_points.size(): " << m_selection_points.size() << std::endl;
+
+
+	for (int i=0; i<m_selection_points.size(); i++){
+		//AGGIUNGERE CONTROLLO SUI DUPLICATI
+		std::cout << "Selection point" << i << " : " << m_selection_points[i] << std::endl;
+
+		// If there is no selection mesh, extract it!
+		if (selection_mesh.vertices.size() == 0) {
+			extract_fine_mesh();
+		}
+
+		// Clear selected vertices
+		cage_edition.selected_vertices.clear();
+
+		// Copy to CPU
+		uint32_t n_verts = selection_mesh.vertices.size();
+		uint32_t n_indices = selection_mesh.indices.size();
+
+		std::vector<point_t> new_vertices_proxy;
+		std::vector<uint32_t> new_indices_proxy;
+
+		Eigen::MatrixXd input_V(n_verts, 3);
+		Eigen::MatrixXi input_F(n_indices / 3, 3);
+		for (int i = 0; i < n_verts; i++) {
+			input_V.row(i) = selection_mesh.vertices[i].cast<double>();
+		}	
+		for (int i = 0; i < n_indices / 3; i++) {
+			input_F.row(i) << selection_mesh.indices[3*i], selection_mesh.indices[3*i+2], selection_mesh.indices[3*i+1];
+		}
+		Eigen::MatrixXd output_V;
+		Eigen::MatrixXi output_F;
+		Eigen::VectorXi output_J;
+		if (m_decimation_algorithm == EDecimationAlgorithm::ShortestEdge) {
+			igl::decimate(input_V, input_F, proxy_size, output_V, output_F, output_J);
+		} else if (m_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsQuadratic) {
+			if (m_progressive_hulls_params.presimplify) {
+				igl::decimate(input_V, input_F, std::max(proxy_size, int(m_progressive_hulls_params.presimplification_ratio * input_F.rows())), output_V, output_F, output_J);
+				input_F = output_F;
+				input_V = output_V;
+			}
+			bool success = progressive_hulls_quadratic(input_V, input_F, proxy_size, output_V, output_F, output_J, m_progressive_hulls_params);
+			if (!success) {
+				std::cout << "Failed to compute progressive hulls, please try again!" << std::endl;
+				return;
+			}
+		} else if (m_decimation_algorithm == EDecimationAlgorithm::ProgressiveHullsLinear) {
+			if (m_progressive_hulls_params.presimplify) {
+				igl::decimate(input_V, input_F, std::max(proxy_size, int(m_progressive_hulls_params.presimplification_ratio * input_F.rows())), output_V, output_F, output_J);
+				input_F = output_F;
+				input_V = output_V;
+			}
+			bool success = progressive_hulls_linear(input_V, input_F, proxy_size, output_V, output_F, output_J, m_progressive_hulls_params);
+			if (!success) {
+				std::cout << "Failed to compute progressive hulls, please try again!" << std::endl;
+				return;
+			}
+		}
+
+		n_verts = output_V.rows();
+		n_indices = output_F.rows()*3;
+		new_vertices_proxy.resize(n_verts);
+		new_indices_proxy.resize(n_indices);
+
+		for (int i = 0; i < n_verts; i++) {
+			new_vertices_proxy[i] = output_V.row(i).cast<float_t>();
+		}
+		for (int i = 0; i < output_F.rows(); i++) {
+			new_indices_proxy[3*i] = output_F.row(i)(0);
+			new_indices_proxy[3*i+1] = output_F.row(i)(1);
+			new_indices_proxy[3*i+2] = output_F.row(i)(2);
+		}
+		
+		set_proxy_mesh(new_vertices_proxy, new_indices_proxy);
+	}	
+}
+
 void GrowingSelection::fix_fine_mesh() {
 	// If there is no fine mesh, skip!
 	if (selection_mesh.vertices.size() == 0) {
@@ -1507,8 +1599,8 @@ void GrowingSelection::fix_proxy_mesh() {
 
 	// Create the associated cage!
     proxy_cage = Cage<float_t, point_t>(new_vertices_proxy, new_indices_proxy);
-	//std::cout << "Proxy cage Created!" << std::endl;
 
+	//std::cout << "Proxy cage Created!" << std::endl;
 	//Set the proxy mesh using the new vertices and indices
     for (int i = 0; i < proxy_cage.colors.size(); i++) {
         proxy_cage.colors[i] = Eigen::Vector3f(
@@ -2117,6 +2209,7 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 		return;
 	}
 	
+
 	//std::cout << "GrowingSelection::project_selection_pixels()" << std::endl;
 
 	const uint32_t padded_output_width = m_nerf_network->padded_output_width();
@@ -2273,16 +2366,17 @@ void GrowingSelection::project_selection_pixels(const std::vector<Vector2i>& ray
 			}
 		}
 	}
-
 	//std::cout << "ray_counter_host: " << ray_counter_host << std::endl;
 	//std::cout << "m_projected_pixels_tmp size: " << m_projected_pixels_tmp.size() << std::endl;
 	
 	// Set to avoid duplicate cell_idx
 	std::set<uint32_t> cell_idx_set;
+
 	//Loop through the rays and update the projected cell indices, projected pixels, projected labels, and the cell index set
 	// Check for rays that did not reach transmittance and discards them if they are outside the requested level
 	// TODO: do something cleaner here...
 	for (int i = 0; i< ray_counter_host; i++) {
+
 			//Check if the current pixel is within the AABB
 			if (m_aabb.contains(m_projected_pixels_tmp[i])) {
 				//Get the level of the current grid index
@@ -2382,7 +2476,7 @@ void GrowingSelection::grow_region(bool ed_flag, int growing_steps) {
 	int cell_idx = m_projected_cell_idx.at(0);
 	m_region_growing.reset_push_m_growing_queue(cell_idx);
 	m_region_growing.reset_growing(m_projected_cell_idx, m_growing_level);
-	
+  
 	m_region_growing.grow_region(ed_flag, m_density_threshold, m_region_growing_mode, m_growing_level, growing_steps);
 	m_selection_grid_bitfield = m_region_growing.selection_grid_bitfield();
 	m_selection_points = m_region_growing.selection_points();

@@ -342,6 +342,8 @@ __global__ void compute_shs_kernel(
     }
 }
 
+//#pragma optimize("", on)
+
 __global__ void compute_poisson_residual_density_kernel(
     const uint32_t n_elements,
     tcnn::PitchedPtr<NerfPosition> nerf_coords,

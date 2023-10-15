@@ -143,8 +143,10 @@ void RegionGrowing::grow_region(bool ed_flag, float density_threshold, ERegionGr
                 m_selection_cell_idx.push_back(current_cell);
                 set_bitfield_at(pos_idx, level, true, m_selection_grid_bitfield.data());
                 //std::cout << "m_selection_cell_idx: " << current_cell << std::endl;
+
             }
                 }
+
             }
             i++;
         }
@@ -172,6 +174,7 @@ bool not_zero_coordinate(Eigen::Vector3f point_to_check) {
     }
 }
 
+
 //DA FIXARE, NON PRENDE SEMPRE PUNTI DISTANTI IN TERMINI DI COORDINATE######################################################################
 //Seleziona in modo uniforme solo alcuni punti superficiali distanti; si ferma al raggiungimento della soglia minima
 void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
@@ -187,7 +190,6 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
          std::cout << "RegionGrowing::equidistant_points() failed: Not enough superficial points selected. Try with a higher growing level."<< std::endl;
         return;
     }
-
     selection_map selection_mapObj;
 
     for (int i = 0; i < m_selection_points.size() && m_temp_points.size() < max_ed_points_limit; i++) {
@@ -200,12 +202,13 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold) {
         }
         count++;
     }
-
+    
     // Sostituisce i vecchi vettori con quelli aggiornati
     m_selection_points = m_temp_points;
     m_selection_cell_idx = m_temp_idx;
     std::cout << "POST m_selection_points size: "<< m_selection_points.size() << std::endl;
 }  
+
 
 //DA FIXARE, NON PRENDE SEMPRE PUNTI DISTANTI IN TERMINI DI COORDINATE######################################################################
 //Seleziona in modo uniforme solo alcuni punti superficiali distanti; intervallo scelto dall'utente; continua finchè non supera la soglia minima
@@ -222,11 +225,12 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold, int interval
             m_temp_points.push_back(m_selection_points[i]);
             m_temp_idx.push_back(m_selection_cell_idx[i]);
             selection_mapObj.add_to_privateMap(m_selection_cell_idx[i], m_selection_points[i]);
+
             //std::cout << "Growing point added A: "<< i << std::endl;
         }
         count++;
     }
-  
+
     int interval2 = 0;
     int remaining_ud_points = min_ed_points_threshold - m_temp_points.size();
     if ( remaining_ud_points > 0) {
@@ -243,6 +247,7 @@ void RegionGrowing::equidistant_points(int min_ed_points_threshold, int interval
                     m_temp_idx.push_back(m_selection_cell_idx[i]);
                     //INSERIMENTO NELLA MAPPA NON TESTATO###########
                     selection_mapObj.add_to_privateMap(m_selection_cell_idx[i], m_selection_points[i]); 
+
                     remaining_ud_points--;
                     //std::cout << "Growing point added B: "<< i << std::endl;
                 }

@@ -29,6 +29,7 @@ bool CubeSE::fit (const std::vector<uint8_t>& selection_grid_bitfield, const uin
     return true;
 }
 
+//Launched by CorrectMMOperations::dilate()
 bool CubeSE::hit (const std::vector<uint8_t>& selection_grid_bitfield, const uint32_t x, const uint32_t y, const uint32_t z, const int level) const {
     for (int i = -m_se_radius; i <= m_se_radius; i++) {
         for (int j = -m_se_radius; j <= m_se_radius; j++) {
@@ -42,6 +43,7 @@ bool CubeSE::hit (const std::vector<uint8_t>& selection_grid_bitfield, const uin
     return false;
 }
 
+//Launched by GUI button "Add operator Cage" 
 SphereSE::SphereSE(int se_radius) : m_se_radius{se_radius} {
     update_support();
 }
@@ -52,6 +54,7 @@ void SphereSE::imgui(const Vector2i& resolution, const Vector2f& focal_length,  
     }
 }
 
+//Launched by CorrectMMOperations::erode()
 bool SphereSE::fit (const std::vector<uint8_t>& selection_grid_bitfield, const uint32_t x, const uint32_t y, const uint32_t z, const int level) const {
     for (const auto& coord: m_se_support) {
         int i = std::get<0>(coord);
@@ -114,6 +117,7 @@ void CorrectMMOperations::imgui(const Vector2i& resolution, const Vector2f& foca
     ImGui::PopID();
 }
 
+//Launched by GrowingSelection::grow_region()
 std::vector<uint8_t> CorrectMMOperations::dilate(
     const std::vector<uint8_t>& selection_grid_bitfield, 
     int growing_level, 

@@ -403,6 +403,9 @@ private:
     // Fix proxy mesh with MeshFix
     void fix_proxy_mesh();
 
+    // Fix all proxy meshes with MeshFix
+    void big_fix_proxy_mesh();
+
     // DEBUG: export the proxy mesh as a file
     void export_proxy_mesh();
 

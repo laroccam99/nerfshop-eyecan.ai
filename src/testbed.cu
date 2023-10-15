@@ -463,7 +463,9 @@ void Testbed::imgui() {
 		ImGui::SameLine();
 		if (m_train)
 		{
+
 			imgui_colored_button("Hover_to_Stop", 0.0);
+
 			if (ImGui::IsItemHovered())
 			{
 				m_train = false;
